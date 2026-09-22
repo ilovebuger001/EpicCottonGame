@@ -1,0 +1,12 @@
+{
+  "id": "rare",
+  "name": "Rare Cotton",
+  "chance": "15/1000",
+  "dmg": [
+    750,
+    1000
+  ],
+  "value": 2500,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_rare.png"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "fine",
+  "name": "Fine Cotton",
+  "chance": "12/100",
+  "dmg": [
+    25,
+    35
+  ],
+  "value": 100,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_fine.png"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "golden",
+  "name": "Golden Cotton",
+  "chance": "1/10000000",
+  "dmg": [
+    15000000,
+    20000000
+  ],
+  "value": 100000000,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_golden.png"
+}

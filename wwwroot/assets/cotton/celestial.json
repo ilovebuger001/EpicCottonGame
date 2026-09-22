@@ -1,0 +1,12 @@
+{
+  "id": "celestial",
+  "name": "Celestial Cotton",
+  "chance": "9/1000000",
+  "dmg": [
+    400000,
+    550000
+  ],
+  "value": 1250000,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_celestial.png"
+}

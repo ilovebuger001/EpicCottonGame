@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": "glove",
+      "name": "Glove",
+      "desc": "Your hand's tiny bodyguard. Less damage, more grabbing, fewer regrets.",
+      "baseCost": 100,
+      "costMultiplier": 2.5,
+      "effectPerTier": 3.0,
+      "maxHpPerTier": 25,
+      "icon": "assets/img/glove_tier1.png"
+    },
+    {
+      "id": "basket",
+      "name": "Bag",
+      "desc": "More room for fluffy loot. More cotton. More money. This is probably fine.",
+      "baseCost": 150,
+      "costMultiplier": 4,
+      "capacityPerTier": 4,
+      "valuePerTier": 4,
+      "icon": "assets/img/basket_tier1.png"
+    }
+  ]
+}

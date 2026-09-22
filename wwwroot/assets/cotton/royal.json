@@ -1,0 +1,12 @@
+{
+  "id": "royal",
+  "name": "Royal Cotton",
+  "chance": "4/1000",
+  "dmg": [
+    3000,
+    4500
+  ],
+  "value": 10000,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_royal.png"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "mythic",
+  "name": "Mythic Cotton",
+  "chance": "9/100000",
+  "dmg": [
+    75000,
+    100000
+  ],
+  "value": 250000,
+  "growImg": "assets/img/sprout.png",
+  "readyImg": "assets/img/cotton_mythic.png"
+}

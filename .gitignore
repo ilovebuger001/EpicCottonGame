@@ -1,0 +1,15 @@
+## .NET Core / C# build outputs
+bin/
+obj/
+publish/
+
+## Visual Studio & VS Code files
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.suo
+
+## OS files
+.DS_Store
+Thumbs.db

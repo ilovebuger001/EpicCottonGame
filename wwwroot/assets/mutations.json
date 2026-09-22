@@ -1,0 +1,82 @@
+[
+  {
+    "id": "frozen",
+    "name": "Frozen",
+    "chance": "1/250",
+    "valueMultiplier": 3.0,
+    "damageMultiplier": 1.5,
+    "icon": "assets/img/mutation_frozen.png"
+  },
+  {
+    "id": "burning",
+    "name": "Burning",
+    "chance": "1/400",
+    "valueMultiplier": 5.0,
+    "damageMultiplier": 2.0,
+    "icon": "assets/img/mutation_burning.png"
+  },
+  {
+    "id": "electrified",
+    "name": "Electrified",
+    "chance": "1/700",
+    "valueMultiplier": 4.0,
+    "damageMultiplier": 3.0,
+    "icon": "assets/img/mutation_electrified.png"
+  },
+  {
+    "id": "toxic",
+    "name": "Toxic",
+    "chance": "1/1000",
+    "valueMultiplier": 5.0,
+    "damageMultiplier": 2.5,
+    "icon": "assets/img/mutation_toxic.png"
+  },
+  {
+    "id": "shadowed",
+    "name": "Shadowed",
+    "chance": "1/2500",
+    "valueMultiplier": 6.0,
+    "damageMultiplier": 4.0,
+    "icon": "assets/img/mutation_shadowed.png"
+  },
+  {
+    "id": "glitched",
+    "name": "Glitched",
+    "chance": "1/5000",
+    "valueMultiplier": 8.0,
+    "damageMultiplier": 3.5,
+    "icon": "assets/img/mutation_glitched.png"
+  },
+  {
+    "id": "crystallized",
+    "name": "Crystallized",
+    "chance": "1/10000",
+    "valueMultiplier": 10.0,
+    "damageMultiplier": 5.0,
+    "icon": "assets/img/mutation_crystallized.png"
+  },
+  {
+    "id": "starborn",
+    "name": "Starborn",
+    "chance": "1/25000",
+    "valueMultiplier": 15.0,
+    "damageMultiplier": 7.0,
+    "icon": "assets/img/mutation_starborn.png"
+  },
+  {
+    "id": "voidtouched",
+    "name": "Voidtouched",
+    "chance": "1/100000",
+    "valueMultiplier": 25.0,
+    "damageMultiplier": 12.0,
+    "icon": "assets/img/mutation_voidtouched.png"
+  },
+  {
+    "id": "gilded",
+    "name": "Gilded",
+    "chance": "1/250000",
+    "valueMultiplier": 50.0,
+    "damageMultiplier": 2.0,
+    "icon": "assets/img/mutation_gilded.png"
+  }
+]

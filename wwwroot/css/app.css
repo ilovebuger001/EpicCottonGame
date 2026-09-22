@@ -1,0 +1,1369 @@
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+:root {
+  /* Voxel Tycoon Pure Pixel Palette Tokens */
+  --turf: #7ca856;
+  --turf-grid: rgba(48, 77, 28, 0.22);
+  --wood-dark: #321d0e;
+  --wood-mid: #5a381c;
+  --wood-light: #8c582e;
+  --wood-highlight: #b37644;
+  --parchment: #fdf5e2;
+  --parchment-slot: #edd7ab;
+  --parchment-well: #dfc492;
+  --gold-dark: #8f6200;
+  --gold-mid: #e5a400;
+  --gold-light: #ffd54f;
+  --gold-shine: #fff9c4;
+  --ink: #2b1a0e;
+  --ink-muted: #6e553e;
+  --danger-dark: #7a1f18;
+  --danger-mid: #c73a2e;
+  --danger-light: #ea6457;
+  --confirm-dark: #25661a;
+  --confirm-mid: #50a828;
+  --confirm-light: #83db46;
+  --shadow-hard: #140b05;
+
+  /* Responsive Pixel Modal Dimensions */
+  --modal-w: min(1020px, 94vw);
+  --modal-h: min(680px, 90vh);
+
+  font-family: "Press Start 2P", ui-monospace, SFMono-Regular, monospace;
+  font-size: 8px;
+}
+
+/* Zero modern rounded corners anywhere - 100% hard pixel edges */
+*, *::before, *::after {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--turf);
+  color: var(--ink);
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  text-rendering: geometricPrecision;
+  user-select: none;
+}
+
+button, a, input, select, textarea {
+  font: inherit;
+  border-radius: 0 !important;
+  cursor: inherit !important;
+}
+
+.game-root * {
+  cursor: inherit !important;
+}
+
+.game-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+}
+
+/* 1. COIN HUD (Wooden Carved Plaque) */
+#coin-hud {
+  position: fixed;
+  left: 14px;
+  top: 14px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 8px;
+  background: var(--wood-mid);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--wood-highlight),
+    inset -2px -2px 0 var(--shadow-hard),
+    4px 4px 0 var(--shadow-hard);
+  color: var(--gold-shine);
+  font-size: 16px;
+  text-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+#coin-hud img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* 2. WORLD CANVAS & OBJECTS */
+.world-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--turf);
+}
+
+.world-surface {
+  position: absolute;
+  inset: -10%;
+  background-color: var(--turf);
+  background-image: 
+    linear-gradient(to right, var(--turf-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--turf-grid) 1px, transparent 1px);
+  background-size: calc(var(--cell) * 1px) calc(var(--cell) * 1px);
+  transform: scale(var(--zoom, 1));
+  transform-origin: center;
+}
+
+.world-slot, .stem-object, .world-shop {
+  position: absolute;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: inherit;
+}
+
+.world-slot {
+  pointer-events: auto;
+}
+
+.world-slot.stem-slot img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 4px 0 rgba(20, 11, 5, 0.35));
+  pointer-events: none;
+}
+
+.world-slot.stem-slot.growing img {
+  opacity: 0.95;
+}
+
+.cotton-visual-stack {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+}
+
+.cotton-visual-stack > img:first-child {
+  width: 72px;
+  height: 72px;
+}
+
+.cotton-visual-stack .mutation-overlay {
+  position: absolute !important;
+  right: -4px;
+  top: -4px;
+  width: 28px !important;
+  height: 28px !important;
+  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.45)) !important;
+  pointer-events: none;
+}
+
+/* Planting Target Indicators */
+.world-slot.targetable::before {
+  content: "";
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border: 3px dashed var(--gold-light);
+  background: rgba(255, 213, 79, 0.15);
+  animation: target-blink 0.8s steps(2, start) infinite;
+}
+
+.world-slot.targetable .plant-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--gold-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--gold-shine),
+    inset -1px -1px 0 var(--gold-dark),
+    2px 2px 0 var(--shadow-hard);
+  color: var(--wood-dark);
+  font-size: 16px;
+  font-weight: bold;
+}
+
+@keyframes target-blink {
+  50% { opacity: 0.35; }
+}
+
+.fertilizer-mark {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  color: var(--gold-light);
+  font-size: 14px;
+  text-shadow: 2px 2px 0 var(--shadow-hard);
+  animation: fert-twinkle 1s steps(2, start) infinite;
+}
+
+@keyframes fert-twinkle {
+  50% { transform: scale(1.15); }
+}
+
+/* World Shop Building */
+.world-shop {
+  z-index: 28;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  cursor: inherit;
+}
+
+.world-shop img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 4px 0 rgba(20, 11, 5, 0.4));
+}
+
+.world-shop:hover {
+  transform: translate(-50%, -50%) scale(1.03);
+}
+
+/* World Bag / Basket */
+.world-bag {
+  position: fixed;
+  z-index: 55;
+  width: 92px;
+  height: 92px;
+  padding: 4px;
+  background: transparent;
+  border: 0;
+  display: grid;
+  place-items: center;
+  cursor: inherit;
+}
+
+.world-bag img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 4px 0 rgba(20, 11, 5, 0.45));
+  pointer-events: none;
+}
+
+.world-bag.drop-ready img {
+  filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 4px var(--gold-light)) drop-shadow(4px 4px 0 var(--shadow-hard));
+}
+
+.world-bag.drop-ready::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 3px solid var(--gold-light);
+  box-shadow: 0 0 0 2px var(--wood-dark), inset 0 0 0 2px var(--gold-shine);
+  animation: bag-pulse 0.6s steps(2, start) infinite;
+  pointer-events: none;
+}
+
+@keyframes bag-pulse {
+  50% { transform: scale(1.04); }
+}
+
+.world-bag.disabled {
+  opacity: 0.4;
+}
+
+/* Floating Hearts Array (Clean without background box) */
+#hearts {
+  position: fixed;
+  z-index: 58;
+  pointer-events: none;
+  display: flex;
+  gap: 2px;
+  transform: translate(-50%, 18px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+#hearts img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(2px 2px 0 rgba(20, 11, 5, 0.55));
+}
+
+.floating-cotton {
+  position: fixed;
+  width: 58px;
+  height: 58px;
+  z-index: 100;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(4px 4px 0 rgba(20, 11, 5, 0.45));
+}
+
+/* World Controls Bar (Docked Keycaps) */
+.world-controls {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 45;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.world-controls span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--wood-highlight),
+    inset -1px -1px 0 var(--shadow-hard),
+    3px 3px 0 var(--shadow-hard);
+  font-size: 8px;
+  color: var(--parchment);
+  line-height: 1;
+}
+
+.world-controls b {
+  color: var(--gold-light);
+}
+
+/* 3. MODAL LAYERS & STEPPED PIXEL WINDOWS */
+.modal-layer, .confirm-layer, .death-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(20, 11, 5, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.menu-window {
+  width: var(--modal-w);
+  height: var(--modal-h);
+  max-width: var(--modal-w);
+  max-height: var(--modal-h);
+  background: var(--parchment);
+  border: 4px solid var(--wood-dark);
+  box-shadow: 
+    inset 3px 3px 0 var(--wood-highlight),
+    inset -3px -3px 0 var(--shadow-hard),
+    6px 6px 0 var(--shadow-hard);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.window-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 3px solid var(--wood-light);
+  background: var(--wood-mid);
+  margin: -16px -16px 14px -16px;
+  padding: 12px 16px;
+  box-shadow: inset 0 -2px 0 var(--wood-dark);
+}
+
+.window-header small {
+  font-size: 8px;
+  color: var(--gold-shine);
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.window-header h2 {
+  font-size: 16px;
+  color: var(--gold-light);
+  margin: 4px 0 0 0;
+  text-shadow: 2px 2px 0 var(--shadow-hard);
+}
+
+.window-header button {
+  width: 36px;
+  height: 36px;
+  background: var(--danger-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--danger-light),
+    inset -1px -1px 0 var(--danger-dark),
+    2px 2px 0 var(--shadow-hard);
+  color: #fff;
+  font-size: 14px;
+  cursor: inherit;
+  display: grid;
+  place-items: center;
+}
+
+.window-header button:hover {
+  background: var(--danger-light);
+}
+
+.window-header button:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+/* 4. PURE PIXEL BUTTONS */
+.pixel-btn {
+  border: 2px solid var(--wood-dark);
+  background: var(--gold-mid);
+  color: var(--wood-dark);
+  padding: 0 14px;
+  height: 36px;
+  font-size: 9px;
+  cursor: inherit;
+  box-shadow: 
+    inset 2px 2px 0 var(--gold-shine),
+    inset -2px -2px 0 var(--gold-dark),
+    3px 3px 0 var(--shadow-hard);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.pixel-btn:hover {
+  background: var(--gold-light);
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 
+    inset 2px 2px 0 var(--gold-dark),
+    inset -2px -2px 0 var(--gold-shine),
+    1px 1px 0 var(--shadow-hard);
+}
+
+.pixel-btn:disabled {
+  opacity: 0.45;
+  cursor: inherit;
+  box-shadow: none;
+  transform: none;
+  background: #9e8e78;
+  color: #524738;
+}
+
+.pixel-btn.confirm {
+  background: var(--confirm-mid);
+  color: #fff;
+  text-shadow: 1px 1px 0 var(--confirm-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--confirm-light),
+    inset -2px -2px 0 var(--confirm-dark),
+    3px 3px 0 var(--shadow-hard);
+}
+
+.pixel-btn.confirm:hover {
+  background: var(--confirm-light);
+}
+
+.pixel-btn.danger {
+  background: var(--danger-mid);
+  color: #fff;
+  text-shadow: 1px 1px 0 var(--danger-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--danger-light),
+    inset -2px -2px 0 var(--danger-dark),
+    3px 3px 0 var(--shadow-hard);
+}
+
+.pixel-btn.danger:hover {
+  background: var(--danger-light);
+}
+
+.pixel-btn.ghost {
+  background: var(--parchment-slot);
+  color: var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--parchment),
+    inset -2px -2px 0 var(--parchment-well),
+    3px 3px 0 var(--shadow-hard);
+}
+
+/* 5. SHOP TABS & CONTENT */
+.shop-tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.shop-tab {
+  height: 44px;
+  background: var(--parchment-well);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--parchment),
+    inset -2px -2px 0 var(--wood-light),
+    3px 3px 0 var(--shadow-hard);
+  color: var(--ink-muted);
+  font-size: 10px;
+  cursor: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-tab.active {
+  background: var(--gold-mid);
+  color: var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--gold-shine),
+    inset -2px -2px 0 var(--gold-dark),
+    3px 3px 0 var(--shadow-hard);
+}
+
+.shop-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+}
+
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.section-row h3 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--wood-dark);
+}
+
+.section-note {
+  font-size: 8px;
+  color: var(--ink-muted);
+}
+
+/* Market Goods Cards */
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.market-card {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  background: var(--parchment-slot);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--parchment),
+    inset -2px -2px 0 var(--parchment-well),
+    3px 3px 0 var(--shadow-hard);
+  align-items: flex-start;
+}
+
+.market-card > img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex: 0 0 64px;
+  background: var(--parchment-well);
+  border: 2px solid var(--wood-dark);
+  padding: 4px;
+  box-shadow: inset 2px 2px 0 var(--wood-dark);
+}
+
+.market-card-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.market-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.market-title-row h4 {
+  margin: 0;
+  font-size: 11px;
+  color: var(--wood-dark);
+}
+
+.market-title-row span {
+  font-size: 8px;
+  color: var(--ink-muted);
+}
+
+.market-card p {
+  margin: 0;
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.market-effect {
+  font-size: 8px;
+  line-height: 1.5;
+  color: var(--confirm-dark);
+  font-weight: bold;
+}
+
+.market-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.market-meta b {
+  color: var(--gold-dark);
+}
+
+.market-meta span {
+  font-size: 8px;
+  color: var(--ink-muted);
+}
+
+/* Upgrade Gear Cards */
+.gear-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.gear-card {
+  background: var(--parchment-slot);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--parchment),
+    inset -2px -2px 0 var(--parchment-well),
+    3px 3px 0 var(--shadow-hard);
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.gear-image {
+  min-height: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  background: var(--parchment-well);
+  border: 2px solid var(--wood-dark);
+  box-shadow: inset 2px 2px 0 var(--wood-dark);
+}
+
+.gear-card img {
+  width: 80px;
+  height: 80px;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+.gear-card small {
+  font-size: 8px;
+  color: var(--ink-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.gear-card h3 {
+  font-size: 13px;
+  margin: 0 0 6px 0;
+  color: var(--wood-dark);
+}
+
+.gear-card p {
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0 0 8px 0;
+}
+
+.gear-price {
+  font-size: 11px;
+  color: var(--gold-dark);
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+/* Medic Dock Bar (In Shop) */
+.medic-dock {
+  flex: 0 0 68px;
+  height: 68px;
+  display: grid;
+  grid-template-columns: 52px 1fr 120px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fae4cc;
+  border: 3px solid #8a3416;
+  box-shadow: 
+    inset 2px 2px 0 #fff0de,
+    inset -2px -2px 0 #c7653a,
+    3px 3px 0 var(--shadow-hard);
+}
+
+.medic-dock-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: #e0763a;
+  border: 2px solid #5a1f0a;
+  box-shadow: inset 1px 1px 0 #ffa366;
+}
+
+.medic-dock-icon img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.medic-dock-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.medic-dock-copy b {
+  font-size: 11px;
+  color: #5a1f0a;
+}
+
+.medic-dock-copy span {
+  font-size: 8px;
+  color: #8a3416;
+}
+
+/* 6. INVENTORY WINDOW & SLOTS */
+.inventory-shell {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.inventory-summary-line {
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--wood-highlight),
+    inset -1px -1px 0 var(--shadow-hard);
+  color: var(--gold-shine);
+  font-size: 9px;
+}
+
+.inventory-grid-unified {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-auto-rows: 108px;
+  gap: 8px;
+  padding: 6px;
+  background: var(--parchment-well);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--wood-dark),
+    inset -2px -2px 0 var(--parchment);
+}
+
+.inventory-slot-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.inventory-slot {
+  position: relative;
+  width: 100%;
+  height: 108px;
+  padding: 0;
+  border: 2px solid var(--wood-dark);
+  background: var(--parchment-slot);
+  box-shadow: 
+    inset 2px 2px 0 var(--wood-dark),
+    inset -2px -2px 0 var(--parchment),
+    2px 2px 0 rgba(0,0,0,0.25);
+  cursor: inherit;
+  overflow: hidden;
+}
+
+.inventory-slot:hover {
+  border-color: var(--gold-light);
+  box-shadow: 
+    inset 0 0 0 2px var(--gold-light),
+    2px 2px 0 rgba(0,0,0,0.3);
+}
+
+.inventory-slot.favorited {
+  border-color: var(--gold-mid);
+  box-shadow: inset 0 0 0 2px var(--gold-mid);
+}
+
+.inventory-slot-art {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.inventory-slot-art img {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.inventory-slot-mutation {
+  position: absolute !important;
+  right: 4px;
+  bottom: 4px;
+  width: 26px !important;
+  height: 26px !important;
+  filter: drop-shadow(1px 1px 0 #000) !important;
+  pointer-events: none;
+}
+
+.inventory-slot-price {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 3px 5px;
+  background: var(--wood-dark);
+  border: 1px solid var(--gold-mid);
+  color: var(--gold-light);
+  font-size: 8px;
+  font-weight: bold;
+  line-height: 1;
+  box-shadow: 1px 1px 0 #000;
+}
+
+/* Floating Item Inspector */
+.inventory-hover-popup {
+  position: fixed;
+  width: 300px;
+  z-index: 100;
+  background: var(--parchment);
+  border: 3px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--wood-highlight),
+    inset -2px -2px 0 var(--shadow-hard),
+    6px 6px 0 var(--shadow-hard);
+  padding: 12px;
+  pointer-events: auto;
+}
+
+.inventory-hover-popup::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 20px;
+  border-width: 6px 8px 6px 0;
+  border-style: solid;
+  border-color: transparent var(--wood-dark) transparent transparent;
+}
+
+.inventory-inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--wood-light);
+}
+
+.inventory-inspector-icon {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  display: grid;
+  place-items: center;
+  background: var(--parchment-well);
+  border: 2px solid var(--wood-dark);
+  box-shadow: inset 1px 1px 0 var(--wood-dark);
+}
+
+.inventory-inspector-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.inventory-inspector-icon span {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  padding: 2px 3px;
+  background: var(--wood-dark);
+  color: var(--gold-light);
+  font-size: 6px;
+}
+
+.inventory-inspector-title h3 {
+  margin: 0 0 4px 0;
+  font-size: 11px;
+  color: var(--wood-dark);
+}
+
+.inventory-inspector-title small {
+  font-size: 8px;
+  color: var(--ink-muted);
+}
+
+.inventory-hover-popup > p {
+  margin: 8px 0;
+  font-size: 8px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.inventory-inspector-stats {
+  padding: 6px 8px;
+  background: var(--parchment-slot);
+  border: 2px solid var(--wood-light);
+  color: var(--wood-dark);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.inventory-inspector-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.inventory-inspector-actions .inspector-use {
+  grid-column: 1 / -1;
+}
+
+.inventory-footer {
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--wood-highlight),
+    inset -1px -1px 0 var(--shadow-hard);
+  color: var(--gold-shine);
+}
+
+.sell-all-button {
+  min-width: 120px;
+}
+
+/* 7. FRIED CHICKEN MEDIC WINDOW */
+.medic-window {
+  width: 620px !important;
+  height: 420px !important;
+  min-width: 620px;
+  min-height: 420px;
+  padding: 16px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  background: #fff4e6;
+  border: 4px solid #5a1f0a;
+  box-shadow: 
+    inset 3px 3px 0 #ffa366,
+    inset -3px -3px 0 #361005,
+    6px 6px 0 var(--shadow-hard);
+}
+
+.medic-header {
+  flex: 0 0 56px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 3px solid #8a3416;
+  padding-bottom: 8px;
+}
+
+.medic-header small {
+  font-size: 8px;
+  color: #8a3416;
+  margin-bottom: 3px;
+  display: block;
+}
+
+.medic-header h2 {
+  font-size: 18px;
+  color: #5a1f0a;
+  margin: 2px 0;
+}
+
+.medic-header span {
+  font-size: 8px;
+  color: #8a3416;
+}
+
+.medic-header button {
+  width: 36px;
+  height: 36px;
+  background: #c73a2e;
+  border: 2px solid #5a1f0a;
+  box-shadow: inset 1px 1px 0 #ea6457, inset -1px -1px 0 #7a1f18;
+  color: #fff;
+  cursor: inherit;
+}
+
+.medic-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.medic-art-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fae0c5;
+  border: 3px solid #5a1f0a;
+  box-shadow: 
+    inset 2px 2px 0 #fff0de,
+    inset -2px -2px 0 #c7653a,
+    3px 3px 0 var(--shadow-hard);
+  padding: 12px;
+}
+
+.medic-art-card img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(4px 4px 0 rgba(40, 15, 5, 0.3));
+}
+
+.medic-art-label {
+  margin-top: 8px;
+  font-size: 8px;
+  color: #8a3416;
+  text-align: center;
+}
+
+.medic-copy h3 {
+  font-size: 14px;
+  color: #5a1f0a;
+  margin: 0 0 8px 0;
+}
+
+.medic-copy p {
+  font-size: 8px;
+  line-height: 1.7;
+  color: #6e4026;
+  margin: 0 0 10px 0;
+}
+
+.medic-price {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  background: #fae0c5;
+  border: 2px solid #5a1f0a;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.medic-price span {
+  font-size: 9px;
+  color: #8a3416;
+}
+
+.medic-price b {
+  font-size: 13px;
+  color: var(--gold-dark);
+}
+
+.medic-price small {
+  grid-column: 1 / -1;
+  font-size: 7px;
+  color: #8a3416;
+}
+
+.medic-joke {
+  font-size: 8px;
+  color: #8a3416;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.medic-actions {
+  flex: 0 0 42px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.medic-actions .pixel-btn {
+  width: 160px;
+}
+
+.medic-key {
+  text-align: right;
+  font-size: 7px;
+  color: #8a3416;
+}
+
+/* 8. CONFIRMATION & DEATH WINDOWS */
+.confirm-window {
+  width: 500px !important;
+  max-width: 92vw;
+  min-height: 330px;
+  height: auto !important;
+  padding: 24px 20px 24px 20px;
+  text-align: center;
+  background: var(--parchment);
+  border: 4px solid var(--wood-dark);
+  box-shadow: 
+    inset 3px 3px 0 var(--wood-highlight),
+    inset -3px -3px 0 var(--shadow-hard),
+    6px 6px 0 var(--shadow-hard);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirm-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--gold-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: inset 2px 2px 0 var(--gold-shine), inset -2px -2px 0 var(--gold-dark);
+  color: var(--wood-dark);
+  font-size: 20px;
+  font-weight: bold;
+  flex: 0 0 48px;
+}
+
+.confirm-window h2 {
+  font-size: 15px;
+  margin: 0;
+  color: var(--wood-dark);
+  line-height: 1.4;
+}
+
+.confirm-window p {
+  font-size: 8px;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0;
+  max-width: 420px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 4px 0;
+}
+
+.confirm-actions .pixel-btn {
+  min-width: 120px;
+}
+
+.confirm-window small {
+  display: block;
+  font-size: 7px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+  letter-spacing: 0.05em;
+  margin: 0;
+  padding-bottom: 2px;
+}
+
+.death-window {
+  width: 500px !important;
+  max-width: 92vw;
+  min-height: 330px;
+  height: auto !important;
+  padding: 24px 20px 24px 20px;
+  text-align: center;
+  background: #261515;
+  border: 4px solid #140808;
+  box-shadow: 
+    inset 3px 3px 0 #5a2828,
+    inset -3px -3px 0 #0d0505,
+    6px 6px 0 var(--shadow-hard);
+  color: #ffe6e6;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.death-skull {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  background: #5a1f1f;
+  border: 2px solid #140808;
+  color: #ff5252;
+  font-size: 24px;
+  font-weight: bold;
+  flex: 0 0 48px;
+}
+
+.death-window h2 {
+  font-size: 18px;
+  color: #ff5252;
+  text-shadow: 2px 2px 0 #000;
+  margin: 0;
+}
+
+.death-window p {
+  font-size: 9px;
+  line-height: 1.8;
+  color: #e0b8b8;
+  margin: 0;
+  max-width: 420px;
+}
+
+.death-window .pixel-btn {
+  min-width: 160px;
+  margin-bottom: 4px;
+}
+
+/* 9. TOAST NOTIFICATIONS */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 80px;
+  transform: translateX(-50%);
+  z-index: 130;
+  padding: 10px 16px;
+  background: var(--wood-dark);
+  color: var(--gold-shine);
+  border: 2px solid var(--gold-mid);
+  box-shadow: 
+    inset 1px 1px 0 var(--gold-light),
+    inset -1px -1px 0 var(--shadow-hard),
+    4px 4px 0 var(--shadow-hard);
+  font-size: 9px;
+  text-align: center;
+}
+
+/* 10. LOADING SCREEN */
+.loading-screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--turf);
+}
+
+.loading-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--parchment);
+  border: 4px solid var(--wood-dark);
+  box-shadow: 
+    inset 3px 3px 0 var(--wood-highlight),
+    inset -3px -3px 0 var(--shadow-hard),
+    6px 6px 0 var(--shadow-hard);
+}
+
+.loading-card img {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+}
+
+.loading-card strong {
+  font-size: 14px;
+  color: var(--wood-dark);
+}
+
+.loading-card span {
+  font-size: 9px;
+  color: var(--ink-muted);
+}
+
+/* 11. STEPPED PIXEL SCROLLBARS */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--wood-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: inset 1px 1px 0 var(--wood-highlight), inset -1px -1px 0 var(--shadow-hard);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--wood-light);
+}

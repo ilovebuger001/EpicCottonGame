@@ -1,0 +1,976 @@
+@page "/"
+@implements IDisposable
+@using System.Numerics
+@using EpicCottonGame.Models
+@using Microsoft.AspNetCore.Components.Web
+@inject HttpClient Http
+@inject GameEngine Engine
+@inject LocalSaveService SaveService
+
+<PageTitle>EpicCottonGame</PageTitle>
+
+@if (!loaded)
+{
+    <div class="loading-screen">
+        <div class="loading-card">
+            <img src="assets/img/cotton_common.png" alt="Cotton" />
+            <strong>EPIC COTTON GAME</strong>
+            @if (loadError == null)
+            {
+                <span>Booting the cotton empire...</span>
+            }
+            else
+            {
+                <span class="loading-error-title">THE WORLD FACEPLANTED</span>
+                <code class="loading-error">@loadError</code>
+                <button class="pixel-btn" type="button" @onclick="RetryLoad">TRY AGAIN</button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="game-root" @ref="gameRoot" tabindex="0" style="cursor:@CursorUrl !important"
+         @onkeydown="OnKeyDown"
+         @onmousemove="OnMouseMove"
+         @onmousedown="OnAnyMouseDown"
+         @onmouseup="OnMouseUp"
+         @onmouseleave="OnMouseUp"
+         @oncontextmenu:preventDefault="true"
+         @onwheel="OnWheel">
+
+        <div id="coin-hud">
+            <img src="assets/img/coin.png" alt="Coin" />
+            <span>@MoneyFormatter.Format(Engine.Money)</span>
+        </div>
+
+        <main class="world-stage" aria-label="Infinite cotton world">
+            <div class="world-surface" style="--cell:@SlotSizePx; background-position:calc(50% + @(panX)px) calc(50% + @(panY)px); transform:scale(@zoom);">
+                @for (var row = 0; row < VisibleRows; row++)
+                {
+                    for (var col = 0; col < VisibleCols; col++)
+                    {
+                        var wx = CameraX + col - HalfCols;
+                        var wy = CameraY + row - HalfRows;
+                        var hasStem = Engine.TryGetStem(wx, wy, out var stem);
+                        var targetable = !string.IsNullOrWhiteSpace(targetItemId) && Engine.IsTargetValid(targetItemId, wx, wy);
+                        var ready = hasStem && stem!.State == StemState.Ready && stem.Type != null;
+                        var growing = hasStem && stem!.State == StemState.Growing;
+                        var classes = hasStem ? $"world-slot stem-slot {(ready ? "ready" : "growing")}" : "world-slot";
+                        if (targetable) classes += " targetable";
+                        if (stem?.IsFertilized == true) classes += " fertilized";
+
+                        <button class="@classes"
+                                style="@WorldSlotStyle(wx, wy)"
+                                type="button"
+                                aria-label="@WorldAriaLabel(wx, wy, stem)"
+                                @onclick="(() => OnWorldClick(wx, wy))"
+                                @onmousedown="((e) => OnWorldMouseDown(wx, wy, stem, e))">
+                            @if (hasStem)
+                            {
+                                <div class="cotton-visual-stack">
+                                    <img src="@(ready ? stem!.Type!.ReadyImg : "assets/img/sprout.png")"
+                                         alt="@(ready ? stem!.Type!.Name : "Growing cotton stem")" />
+                                    @if (ready && stem!.Mutation?.Icon is { Length: > 0 } mutationIcon)
+                                    {
+                                        <img class="mutation-overlay" src="@mutationIcon" alt="@stem.Mutation.Name mutation" />
+                                    }
+                                </div>
+                                @if (stem!.IsFertilized)
+                                {
+                                    <span class="fertilizer-mark">✦</span>
+                                }
+                            }
+                            else if (targetable && TargetKind() == "seed")
+                            {
+                                <span class="plant-marker">+</span>
+                            }
+                        </button>
+                    }
+                }
+
+                <button class="world-shop combined-shop-object" style="@WorldSlotStyle(0, -2, 84)" type="button" @onclick="OpenCombinedShop" aria-label="Open shop">
+                    <img src="assets/img/shop.png" alt="Shop" />
+                </button>
+
+                <div class="world-start-marker" style="@WorldSlotStyle(0, 0, 1)" aria-hidden="true"></div>
+            </div>
+
+            @if (draggingCottonIdx != null)
+            {
+                <img class="floating-cotton" src="@DraggingCottonImage"
+                     style="left:@cursorXpx; top:@cursorYpx;" alt="Cotton being dragged" />
+            }
+
+            <div class="world-controls">
+                <span><b>RMB + DRAG</b> PAN</span>
+                <span><b>WHEEL</b> ZOOM</span>
+                <span><b>RIGHT-CLICK BAG</b> INVENTORY</span>
+                <span><b>SPACE</b> CENTER MAP</span>
+            </div>
+
+            <button id="basket" class="world-bag @(Engine.IsDead ? "disabled" : "") @(draggingCottonIdx != null ? "drop-ready" : "")"
+                    type="button"
+                    style="left:@(basketX)px; top:@(basketY)px;"
+                    @onmousedown="OnBasketDown"
+                    @onmousedown:stopPropagation="true"
+                    @oncontextmenu="OnBasketRightClick">
+                <img src="@Engine.BasketImagePath" alt="Bag" />
+            </button>
+
+            <div id="hearts" style="left:@cursorXpx; top:@cursorYpx;">
+                @for (var h = 0; h < GameEngine.Hearts; h++)
+                {
+                    <img src="assets/img/@HeartAsset(h)" alt="" />
+                }
+            </div>
+
+        </main>
+
+        @if (combinedShopOpen)
+        {
+            <div class="modal-layer" @onclick="CloseCombinedShop">
+                <section class="menu-window combined-shop-window" @onclick:stopPropagation="true">
+                    <div class="window-header">
+                        <div><small>SHOP</small><h2>@(shopTab == "market" ? "GLOBAL MARKET" : "UPGRADE SHOP")</h2></div>
+                        <button type="button" @onclick="CloseCombinedShop">×</button>
+                    </div>
+
+                    <div class="shop-tabs" role="tablist">
+                        <button class="shop-tab @(shopTab == "market" ? "active" : "")" type="button" @onclick='(() => SelectShopTab("market"))'>GLOBAL MARKET</button>
+                        <button class="shop-tab @(shopTab == "upgrade" ? "active" : "")" type="button" @onclick='(() => SelectShopTab("upgrade"))'>UPGRADE SHOP</button>
+                    </div>
+
+                    <div class="shop-content">
+                    @if (shopTab == "market")
+                    {
+                        <div class="market-section shop-scroll">
+                            <div class="section-row"><h3>GOODIES</h3><span class="section-note">SEED NEVER RUNS OUT • FERTILIZER RESTOCK @MarketCountdown()</span></div>
+                            <div class="market-grid">
+                                @foreach (var row in Engine.GetMarketInventoryRows())
+                                {
+                                    var item = row.Item;
+                                    <article class="market-card">
+                                        <img src="@item.Icon" alt="@item.Name" />
+                                        <div class="market-card-copy">
+                                            <div class="market-title-row"><h4>@item.Name</h4><span>@(row.Stock < 0 ? "∞ IN STOCK" : $"x{row.Stock}")</span></div>
+                                            <p>@item.Desc</p>
+                                            @if (item.Kind == "fertilizer")
+                                            {
+                                                <div class="market-effect">@MarketEffectText(item)</div>
+                                            }
+                                            <div class="market-meta"><b>@MoneyFormatter.Format(row.Cost)</b><span>@($"YOU HAVE ×{row.Count}")</span></div>
+                                            <button class="pixel-btn" type="button" @onclick="(() => BuyMarketItem(item.Id))" disabled="@(Engine.Money < row.Cost || row.Stock == 0)">BUY → BAG</button>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="market-section gear-section shop-scroll">
+                            <div class="section-row"><h3>POWER + FLUFF STORAGE</h3><span class="section-note">NO MAX. JUST PAIN.</span></div>
+                            <div class="gear-grid">
+                                <article class="gear-card">
+                                    <div class="gear-image"><img src="@Engine.GloveImagePath" alt="Glove" /></div>
+                                    <div><small>HAND PROTECTION</small><h3>GLOVE TIER @Engine.GloveTier</h3><p>@Engine.GloveDescription</p><div class="gear-price">NEXT UPGRADE @MoneyFormatter.Format(Engine.NextGloveCost)</div><button class="pixel-btn" type="button" @onclick="BuyGlove" disabled="@(Engine.Money < Engine.NextGloveCost)">UPGRADE</button></div>
+                                </article>
+                                <article class="gear-card">
+                                    <div class="gear-image"><img src="@Engine.BasketImagePath" alt="Bag" /></div>
+                                    <div><small>FLUFF STORAGE</small><h3>BAG TIER @Engine.BasketTier</h3><p>@Engine.BasketDescription</p><div class="gear-price">NEXT UPGRADE @MoneyFormatter.Format(Engine.NextBasketCost)</div><button class="pixel-btn" type="button" @onclick="BuyBasket" disabled="@(Engine.Money < Engine.NextBasketCost)">UPGRADE</button></div>
+                                </article>
+                            </div>
+                        </div>
+                    }
+                    </div>
+
+                    <div class="medic-dock">
+                        <div class="medic-dock-icon"><img src="assets/img/medic_drums.png" alt="Fried chicken" /></div>
+                        <div class="medic-dock-copy"><b>FRIED CHICKEN</b><span>FULL HEAL • @MoneyFormatter.Format(Engine.MedicFullHealPrice) • WELL, WELL, WELL...</span></div>
+                        <button class="pixel-btn confirm" type="button" @onclick="OpenMedicFromShop" disabled="@(!Engine.CanUseMedic)">OPEN</button>
+                    </div>
+                </section>
+            </div>
+        }
+
+        @if (medicOpen)
+        {
+            <div class="modal-layer" @onclick="CloseMedic">
+                <section class="menu-window medic-window" @onclick:stopPropagation="true">
+                    <div class="medic-header">
+                        <div><small>FRIED CHICKEN</small><h2>FULL HEAL</h2><span>WELL, WELL, WELL...</span></div>
+                        <button type="button" @onclick="CloseMedic">×</button>
+                    </div>
+                    <div class="medic-body">
+                        <div class="medic-art-card">
+                            <img src="assets/img/medic_drums.png" alt="Fried chicken" />
+                            <div class="medic-art-label">ONE HOT DRUMSTICK</div>
+                        </div>
+                        <div class="medic-copy">
+                            <h3>FRIED CHICKEN</h3>
+                            <p>Well Well Well What do we have here... Fulfil your stomach to fully heal your health.</p>
+                            <div class="medic-price"><span>FULL HEAL</span><b>@MoneyFormatter.Format(Engine.MedicFullHealPrice)</b><small>PRICE = MAX HP + 25%</small></div>
+                            <div class="medic-joke">BRO GOT COOKED. LET HIM COOK.</div>
+                        </div>
+                    </div>
+                    <div class="medic-actions">
+                        <button class="pixel-btn ghost" type="button" @onclick="CloseMedic">NOPE</button>
+                        <button class="pixel-btn confirm" type="button" @onclick="BuyFullHeal" disabled="@(!Engine.CanUseMedic || Engine.Money < Engine.MedicFullHealPrice)">EAT CHICKEN</button>
+                    </div>
+                    <small class="medic-key">SPACE = CONFIRM • ESC = CLOSE</small>
+                </section>
+            </div>
+        }
+
+        @if (inventoryOpen)
+        {
+            <div class="modal-layer" @onclick="CloseInventory">
+                <section class="menu-window inventory-window" @onclick:stopPropagation="true">
+                    <div class="window-header">
+                        <div><small>BAG FLUFF STORAGE</small><h2>INVENTORY</h2></div>
+                        <button type="button" @onclick="CloseInventory">×</button>
+                    </div>
+
+                    <div class="inventory-shell" @onmouseleave="ClearInventoryHover">
+                        <div class="inventory-summary-line">
+                            <span>BAG @Engine.Basket.Count / @MoneyFormatter.Format(Engine.BagCapacity)</span>
+                            <span>EVERYTHING SORTED BY VALUE • HOVER AN ITEM FOR DETAILS</span>
+                        </div>
+
+                        @{ var inventoryItems = GetUnifiedInventoryItems().ToList(); }
+                        <div class="inventory-grid-unified">
+                            @for (var i = 0; i < inventoryItems.Count; i++)
+                            {
+                                var item = inventoryItems[i];
+                                <div class="inventory-slot-wrap">
+                                    <button class="inventory-slot @(item.Favorited ? "favorited" : "")"
+                                            type="button"
+                                            @onmouseenter="((e) => ShowInventoryItem(item.Id, e))"
+                                            @onclick="(() => SelectInventoryForPopup(item.Id))">
+                                        <div class="inventory-slot-art">
+                                            <img src="@item.Icon" alt="@item.Name" />
+                                            @if (!string.IsNullOrWhiteSpace(item.OverlayIcon))
+                                            {
+                                                <img class="inventory-slot-mutation" src="@item.OverlayIcon" alt="" />
+                                            }
+                                            @if (item.IsCotton)
+                                            {
+                                                <span class="inventory-slot-price">@MoneyFormatter.Format(item.Value)</span>
+                                            }
+                                            else if (item.Count > 1)
+                                            {
+                                                <span class="inventory-slot-price">×@item.Count</span>
+                                            }
+                                        </div>
+                                    </button>
+                                </div>
+                            }
+                            @if (inventoryItems.Count == 0)
+                            {
+                                <div class="empty-state unified-empty">
+                                    <strong>EMPTY BAG.</strong>
+                                    <span>Go grow some fluffy money.</span>
+                                </div>
+                            }
+                        </div>
+
+                        @if (GetHoveredInventoryItem() is { } hovered)
+                        {
+                            <div class="inventory-hover-popup" style="left:calc(min(calc(100vw - 330px), @(inventoryPopupX + 16)px)); top:calc(min(calc(100vh - 360px), @(inventoryPopupY + 16)px));" @onmouseenter="KeepInventoryPopup">
+                                <div class="inventory-inspector-head">
+                                    <div class="inventory-inspector-icon">
+                                        <img src="@hovered.Icon" alt="@hovered.Name" />
+                                        @if (!string.IsNullOrWhiteSpace(hovered.OverlayIcon))
+                                        {
+                                            <img class="inventory-inspector-mutation" src="@hovered.OverlayIcon" alt="" />
+                                        }
+                                        <span>@MoneyFormatter.Format(hovered.Value)</span>
+                                    </div>
+                                    <div class="inventory-inspector-title">
+                                        <h3>@hovered.Name</h3>
+                                        <small>@(hovered.IsCotton ? "COTTON" : hovered.Kind.ToUpperInvariant())@(hovered.Count > 1 ? $" • ×{hovered.Count}" : "")</small>
+                                    </div>
+                                </div>
+                                <p>@hovered.Desc</p>
+                                <div class="inventory-inspector-stats">@hovered.Stats</div>
+                                <div class="inventory-inspector-actions">
+                                    @if (hovered.IsCotton)
+                                    {
+                                        <button type="button" class="pixel-btn inspector-action favorite-action" @onclick="(() => ToggleFavorite(hovered.Id))">@(hovered.Favorited ? "★ UNFAV" : "☆ FAV")</button>
+                                        <button type="button" class="pixel-btn inspector-action sell-action" @onclick="(() => SellCotton(hovered.Id))">SELL</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="pixel-btn confirm inspector-use" @onclick="(() => UseInventoryItemFromPopup(hovered.Id))">USE</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="inventory-footer">
+                            <span>FAVORITES ARE SAFE</span>
+                            <button class="pixel-btn danger sell-all-button" type="button" @onclick="ConfirmSellAll" disabled="@(Engine.Basket.Count == 0)">SELL ALL</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        }
+
+        @if (pendingUse)
+        {
+            <div class="confirm-layer">
+                <section class="confirm-window">
+                    <div class="confirm-icon">?</div>
+                    <h2>@PendingTitle()</h2>
+                    <p>@PendingDescription()</p>
+                    <div class="confirm-actions">
+                        <button class="pixel-btn ghost" type="button" @onclick="CancelPending">NOPE</button>
+                        <button class="pixel-btn confirm" type="button" @onclick="ConfirmPending">DO IT</button>
+                    </div>
+                    <small>SPACE = DO IT • ESC = NEVERMIND</small>
+                </section>
+            </div>
+        }
+
+        @if (confirmingSellAll)
+        {
+            <div class="confirm-layer">
+                <section class="confirm-window">
+                    <div class="confirm-icon">$</div>
+                    <h2>SELL THE NON-FAVORITES?</h2>
+                    <p>Every cotton without a favorite star gets sold for @UnfavoritedValue(). The starry ones survive.</p>
+                    <div class="confirm-actions">
+                        <button class="pixel-btn ghost" type="button" @onclick="() => confirmingSellAll = false">NOPE</button>
+                        <button class="pixel-btn confirm" type="button" @onclick="DoSellAll">SELL</button>
+                    </div>
+                    <small>ESC = CANCEL</small>
+                </section>
+            </div>
+        }
+
+        @if (Engine.IsDead)
+        {
+            <div class="death-layer">
+                <section class="death-window">
+                    <div class="death-skull">!</div>
+                    <h2>YOU FACEPLANTED</h2>
+                    <p>You dropped @MoneyFormatter.Format(Engine.LastLostMoney) because gravity won.</p>
+                    <button class="pixel-btn" type="button" @onclick="Respawn">GET BACK UP</button>
+                </section>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(toast))
+        {
+            <div class="toast" role="status">@toast</div>
+        }
+    </div>
+}
+
+@code {
+    const int VisibleCols = 23;
+    const int VisibleRows = 15;
+    const int HalfCols = VisibleCols / 2;
+    const int HalfRows = VisibleRows / 2;
+    const int SlotSizePx = 92;
+
+    bool loaded;
+    ElementReference gameRoot;
+    string accountId = "";
+    bool combinedShopOpen;
+    string shopTab = "market";
+    bool inventoryOpen;
+    bool medicOpen;
+    bool confirmingSellAll;
+    string? loadError;
+    string? targetItemId;
+    bool pendingUse;
+    string? pendingItemId;
+    int pendingX;
+    int pendingY;
+    string? selectedInventoryItemId;
+    string? hoveredInventoryItemId;
+    bool inventoryPopupActive;
+    double inventoryPopupX;
+    double inventoryPopupY;
+    string? toast;
+    Timer? tickTimer;
+    Timer? regenTimer;
+    Timer? toastTimer;
+
+    double cursorX = 0;
+    double cursorY = 0;
+    double basketX = 520;
+    double basketY = 440;
+    bool isMouseDown;
+    bool draggingBasket;
+    double basketOffsetX;
+    double basketOffsetY;
+    bool panningCamera;
+    double panStartClientX;
+    double panStartClientY;
+    double panX;
+    double panY;
+    int CameraX;
+    int CameraY;
+    CottonStem? draggingCottonIdx;
+    bool suppressClick;
+    double zoom = 1.0;
+
+    string cursorXpx => $"{cursorX:0.#}px";
+    string cursorYpx => $"{cursorY:0.#}px";
+    string DraggingCottonImage => draggingCottonIdx?.Type?.ReadyImg ?? "assets/img/cotton_common.png";
+
+    string CursorUrl
+    {
+        get
+        {
+            var hold = isMouseDown || draggingCottonIdx != null;
+            return hold ? $"url('assets/img/glove_cursor_tier{Math.Clamp(((Math.Max(1, Engine.GloveTier) - 1) % 20) + 1, 1, 20)}_hold.png') 5 5, auto"
+                         : $"url('assets/img/glove_cursor_tier{Math.Clamp(((Math.Max(1, Engine.GloveTier) - 1) % 20) + 1, 1, 20)}.png') 5 5, auto";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeGameAsync();
+    }
+
+    async Task InitializeGameAsync()
+    {
+        try
+        {
+            loadError = null;
+            loaded = false;
+            await Engine.LoadConfigAsync(Http);
+            accountId = await SaveService.GetAccountIdAsync();
+            var result = await SaveService.LoadAsync<GameSaveState>(accountId);
+            if (result.Valid && result.Data != null)
+            {
+                if (!Engine.RestoreSaveState(result.Data))
+                {
+                    await SaveAsync();
+                    ShowToast("New save secured. Try not to become a millionaire in five minutes.");
+                }
+            }
+            else if (result.Found)
+            {
+                await SaveAsync();
+                ShowToast("Your save survived the chaos.");
+            }
+            else
+            {
+                await SaveAsync();
+            }
+
+            loaded = true;
+            tickTimer?.Dispose();
+            regenTimer?.Dispose();
+            tickTimer = new Timer(_ => _ = InvokeAsync(async () =>
+            {
+                if (Engine.Tick()) await SaveAsync();
+                StateHasChanged();
+            }), null, 500, 500);
+            regenTimer = new Timer(_ => _ = InvokeAsync(async () =>
+            {
+                if (Engine.PassiveRegen()) await SaveAsync();
+                StateHasChanged();
+            }), null, 3000, 3000);
+        }
+        catch (Exception ex)
+        {
+            loaded = false;
+            loadError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task RetryLoad() => await InitializeGameAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && loaded)
+            await gameRoot.FocusAsync();
+    }
+
+    async Task SaveAsync() => await SaveService.SaveAsync(accountId, Engine.CaptureSaveState());
+
+    string WorldSlotStyle(int x, int y, int size = 72)
+        => $"left:calc(50% + {((x - CameraX) * SlotSizePx + panX):0.##}px);top:calc(50% + {((y - CameraY) * SlotSizePx + panY):0.##}px);width:{size}px;height:{size}px;transform:translate(-50%,-50%);";
+
+    void OnAnyMouseDown(MouseEventArgs e)
+    {
+        isMouseDown = true;
+        cursorX = e.ClientX;
+        cursorY = e.ClientY;
+
+        if (e.Button == 2 || e.Button == 1)
+        {
+            if (!IsOverBasket(e.ClientX, e.ClientY))
+            {
+                panningCamera = true;
+                panStartClientX = e.ClientX;
+                panStartClientY = e.ClientY;
+            }
+        }
+
+        if (draggingBasket && (e.Buttons & 1) == 0)
+            draggingBasket = false;
+    }
+
+    void OnMouseMove(MouseEventArgs e)
+    {
+        cursorX = e.ClientX;
+        cursorY = e.ClientY;
+
+        if (draggingBasket)
+        {
+            basketX = e.ClientX - basketOffsetX;
+            basketY = e.ClientY - basketOffsetY;
+        }
+
+        if (panningCamera)
+        {
+            if (e.Buttons != 0 && (e.Buttons & 6) == 0)
+            {
+                panningCamera = false;
+            }
+            else
+            {
+                var dx = (e.ClientX - panStartClientX) / zoom;
+                var dy = (e.ClientY - panStartClientY) / zoom;
+                panStartClientX = e.ClientX;
+                panStartClientY = e.ClientY;
+
+                panX += dx;
+                panY += dy;
+                NormalizeCamera();
+            }
+        }
+    }
+
+    void OnWheel(WheelEventArgs e)
+    {
+        var next = zoom + (e.DeltaY < 0 ? 0.1 : -0.1);
+        zoom = Math.Clamp(next, 0.55, 1.55);
+    }
+
+    void NormalizeCamera()
+    {
+        while (panX > SlotSizePx / 2d) { CameraX--; panX -= SlotSizePx; }
+        while (panX < -SlotSizePx / 2d) { CameraX++; panX += SlotSizePx; }
+        while (panY > SlotSizePx / 2d) { CameraY--; panY -= SlotSizePx; }
+        while (panY < -SlotSizePx / 2d) { CameraY++; panY += SlotSizePx; }
+    }
+
+    void CenterCamera()
+    {
+        CameraX = 0;
+        CameraY = 0;
+        panX = 0;
+        panY = 0;
+        ShowToast("Lost? Nope. Back to the nest.");
+    }
+
+    void OnBasketDown(MouseEventArgs e)
+    {
+        if (e.Button != 0 || draggingCottonIdx != null || Engine.IsDead) return;
+        draggingBasket = true;
+        isMouseDown = true;
+        basketOffsetX = e.ClientX - basketX;
+        basketOffsetY = e.ClientY - basketY;
+    }
+
+    void OnBasketRightClick(MouseEventArgs e)
+    {
+        if (e.Button == 2) inventoryOpen = true;
+    }
+
+    async Task OnMouseUp(MouseEventArgs e)
+    {
+        isMouseDown = false;
+        draggingBasket = false;
+
+        if (e.Button == 2 || e.Button == 1 || (e.Buttons & 6) == 0)
+        {
+            panningCamera = false;
+        }
+
+        if (draggingCottonIdx != null)
+        {
+            var stem = draggingCottonIdx;
+            draggingCottonIdx = null;
+            suppressClick = true;
+            if (IsOverBasket(e.ClientX, e.ClientY))
+            {
+                if (Engine.Harvest(stem.X, stem.Y))
+                {
+                    await SaveAsync();
+                    ShowToast("Fluff secured. Same stem is already making more.");
+                }
+                else
+                {
+                    ShowToast("The fluff escaped you, or the Bag is stuffed.");
+                }
+            }
+            else
+            {
+                ShowToast("Feed the fluff to the Bag.");
+            }
+        }
+    }
+
+    void OnWorldMouseDown(int x, int y, CottonStem? stem, MouseEventArgs e)
+    {
+        if (e.Button != 0 || stem == null) return;
+        OnCottonDown(stem, e);
+    }
+
+    void OnCottonDown(CottonStem stem, MouseEventArgs e)
+    {
+        if (e.Button != 0 || Engine.IsDead || stem.State != StemState.Ready || stem.Type == null) return;
+        if (Engine.BagFull)
+        {
+            ShowToast("Bag is stuffed. Sell some fluff first.");
+            return;
+        }
+        draggingCottonIdx = stem;
+        cursorX = e.ClientX;
+        cursorY = e.ClientY;
+    }
+
+    void OnStemClick(CottonStem stem, MouseEventArgs e)
+    {
+        if (suppressClick)
+        {
+            suppressClick = false;
+            return;
+        }
+        if (targetItemId != null) return;
+        if (e.Button != 0) return;
+        if (stem.State == StemState.Ready) ShowToast("Grab the fluff and feed the Bag.");
+        else ShowToast($"This stem is busy. Let it make more fluff.");
+    }
+
+    void OnWorldClick(int x, int y)
+    {
+        if (suppressClick)
+        {
+            suppressClick = false;
+            return;
+        }
+        if (targetItemId != null)
+        {
+            if (Engine.IsTargetValid(targetItemId, x, y))
+            {
+                pendingItemId = targetItemId;
+                pendingX = x;
+                pendingY = y;
+                pendingUse = true;
+            }
+            return;
+        }
+        if (Engine.TryGetStem(x, y, out var stem))
+        {
+            OnStemClick(stem!, new MouseEventArgs { Button = 0 });
+            return;
+        }
+        ShowToast("Grab a Cotton Seed, then plant it somewhere empty.");
+    }
+
+    bool IsOverBasket(double x, double y)
+    {
+        const double size = 86;
+        return x >= basketX && x <= basketX + size && y >= basketY && y <= basketY + size;
+    }
+
+    string WorldAriaLabel(int x, int y, CottonStem? stem)
+    {
+        if (stem == null) return $"Empty spot at {x}, {y}. Perfect for another money machine.";
+        return stem.State == StemState.Ready ? $"Fresh fluff at {x}, {y}. Grab it and feed the Bag" : $"A stem at {x}, {y} is busy making more fluff";
+    }
+
+    int GrowthSeconds(CottonStem stem) => Math.Max(0, (int)Math.Ceiling((stem.ReadyAt - DateTime.UtcNow).TotalSeconds));
+
+    string HeartAsset(int index)
+    {
+        var hpPerHeart = Math.Max(1, Engine.MaxHp / GameEngine.Hearts);
+        var hp = Engine.Hp - index * hpPerHeart;
+        if (hp >= hpPerHeart) return "heart_full.png";
+        if (hp > 0) return "heart_half.png";
+        return "heart_empty.png";
+    }
+
+    string MarketCountdown() => $"{Math.Max(0, (int)Math.Ceiling((Engine.NextMarketRestockAt - DateTime.UtcNow).TotalSeconds))}s";
+
+    string MarketEffectText(MarketItemConfig item)
+    {
+        var rarity = $"Rarity ×{item.RarityMultiplier:0.##}";
+        var mutation = $"Mutation ×{item.MutationMultiplier:0.##}";
+        var bonus = item.MutationChanceBonus > 0 ? $" +{item.MutationChanceBonus:P0}" : "";
+        return $"NEXT PUFF • {rarity} • {mutation}{bonus} • STACKS WITH OTHER TYPES";
+    }
+
+    string TargetKind() => string.IsNullOrWhiteSpace(targetItemId) ? "" : Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == targetItemId)?.Item.Kind ?? "";
+    string TargetingTitle() => Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == targetItemId)?.Item.Name.ToUpperInvariant() ?? "PICK A SPOT";
+
+    void OpenCombinedShop()
+    {
+        inventoryOpen = false;
+        medicOpen = false;
+        selectedInventoryItemId = null;
+        shopTab = "market";
+        combinedShopOpen = true;
+    }
+
+    void CloseCombinedShop() { combinedShopOpen = false; selectedInventoryItemId = null; }
+    void SelectShopTab(string tab) { shopTab = tab == "upgrade" ? "upgrade" : "market"; }
+    void OpenInventory() { combinedShopOpen = false; medicOpen = false; selectedInventoryItemId = null; ClearInventoryHover(); inventoryOpen = true; }
+    void CloseInventory() { inventoryOpen = false; selectedInventoryItemId = null; ClearInventoryHover(); }
+    void OpenMedicFromShop() { combinedShopOpen = false; medicOpen = true; }
+    void CloseMedic() { medicOpen = false; }
+
+    void SelectInventoryItem(string itemId)
+    {
+        if (Engine.GetInventoryCount(itemId) <= 0) return;
+        selectedInventoryItemId = itemId;
+    }
+
+    record UnifiedInventoryItem(string Id, string Kind, string Name, string Desc, string Icon, string OverlayIcon, BigInteger Value, int Count, bool Favorited, string Stats, bool IsCotton);
+
+    IEnumerable<UnifiedInventoryItem> GetUnifiedInventoryItems()
+    {
+        var consumables = Engine.GetMarketInventoryRows()
+            .Where(x => x.Count > 0)
+            .Select(x => new UnifiedInventoryItem(
+                x.Item.Id,
+                x.Item.Kind,
+                x.Item.Name,
+                x.Item.Desc,
+                x.Item.Icon,
+                "",
+                x.Cost,
+                x.Count,
+                false,
+                x.Item.Kind == "fertilizer" ? MarketEffectText(x.Item) : "ONE SEED PER STEM • PERMANENT PLANT",
+                false));
+
+        var cotton = Engine.GetCottonInventory()
+            .Select(x => new UnifiedInventoryItem(
+                x.Id,
+                "cotton",
+                x.Name,
+                CottonInventoryDescription(x),
+                x.Image,
+                x.MutationImage,
+                x.Value,
+                1,
+                x.Favorited,
+                CottonInventoryStats(x),
+                true));
+
+        return consumables.Concat(cotton)
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    string CottonInventoryDescription(GameEngine.CottonInventoryView item)
+        => string.IsNullOrWhiteSpace(item.Mutation)
+            ? "A fluffy cotton prize. Keep it, sell it, or flex it."
+            : $"{item.Mutation} mutation attached. The cotton stayed weird, and somehow more expensive.";
+
+    string CottonInventoryStats(GameEngine.CottonInventoryView item)
+        => $"BASE {MoneyFormatter.Format(item.BaseValue)} • SELL {MoneyFormatter.Format(item.Value)} • DMG {item.DamageRange}"
+           + (string.IsNullOrWhiteSpace(item.Mutation) ? "" : $" ×{item.MutationDamageMultiplier:0.##} MUTATION DMG • {item.Mutation.ToUpperInvariant()}");
+
+    UnifiedInventoryItem? GetHoveredInventoryItem()
+        => inventoryPopupActive && hoveredInventoryItemId != null ? GetUnifiedInventoryItems().FirstOrDefault(x => x.Id == hoveredInventoryItemId) : null;
+
+    void ShowInventoryItem(string itemId, MouseEventArgs e)
+    {
+        hoveredInventoryItemId = itemId;
+        inventoryPopupActive = true;
+        selectedInventoryItemId = itemId;
+        inventoryPopupX = e.ClientX;
+        inventoryPopupY = e.ClientY;
+    }
+
+    void SelectInventoryForPopup(string itemId)
+    {
+        if (GetUnifiedInventoryItems().Any(x => x.Id == itemId))
+        {
+            hoveredInventoryItemId = itemId;
+            inventoryPopupActive = true;
+            selectedInventoryItemId = itemId;
+        }
+    }
+
+    void KeepInventoryPopup() => inventoryPopupActive = true;
+
+    void ClearInventoryHover()
+    {
+        hoveredInventoryItemId = null;
+        inventoryPopupActive = false;
+    }
+
+    void UseInventoryItemFromPopup(string itemId)
+    {
+        selectedInventoryItemId = itemId;
+        BeginUseSelectedInventoryItem();
+    }
+
+    void BeginUseSelectedInventoryItem()
+    {
+        if (selectedInventoryItemId == null) return;
+        var itemId = selectedInventoryItemId;
+        if (Engine.GetInventoryCount(itemId) <= 0) { selectedInventoryItemId = null; return; }
+        CloseInventory();
+        targetItemId = itemId;
+        pendingItemId = null;
+        pendingUse = false;
+        ShowToast("Pick any cotton stem.");
+    }
+
+void CancelTargeting()
+    {
+        targetItemId = null;
+        pendingItemId = null;
+        pendingUse = false;
+    }
+
+    string PendingTitle() => Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == pendingItemId)?.Item.Name.ToUpperInvariant() ?? "DO THE THING";
+
+    string PendingDescription()
+    {
+        var row = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == pendingItemId);
+        return row?.Item.Kind switch
+        {
+            "seed" => $"Plant one permanent cotton stem here? Your wallet may notice.",
+            "fertilizer" => $"Give this stem {row.Item.Name}? It stacks with other fertilizer types, but not itself twice.",
+            _ => "Use this thing?"
+        };
+    }
+
+    async Task ConfirmPending()
+    {
+        if (pendingItemId == null) return;
+        var id = pendingItemId;
+        var x = pendingX;
+        var y = pendingY;
+        CancelTargeting();
+        var ok = Engine.TryUseItemAt(id, x, y);
+        if (ok) await SaveAsync();
+        ShowToast(ok ? "Done. The plant got the good stuff." : "Too late. That spot is taken.");
+    }
+
+    void CancelPending() => CancelTargeting();
+
+    async Task BuyMarketItem(string id)
+    {
+        if (Engine.BuyMarketItem(id))
+        {
+            await SaveAsync();
+            ShowToast("Bought! It is now living in your Bag.");
+        }
+        else ShowToast("Not enough cash, or the shelf is empty.");
+    }
+
+    void OnKeyDown(KeyboardEventArgs e)
+    {
+        var space = e.Code == "Space" || e.Key == " ";
+        if (space)
+        {
+            if (pendingUse) { _ = ConfirmPending(); return; }
+            if (medicOpen) { _ = BuyFullHeal(); return; }
+            if (inventoryOpen && selectedInventoryItemId != null) { BeginUseSelectedInventoryItem(); return; }
+            CenterCamera();
+            return;
+        }
+        if (e.Key == "Escape")
+        {
+            if (pendingUse || targetItemId != null) CancelTargeting();
+            else if (confirmingSellAll) confirmingSellAll = false;
+            else if (combinedShopOpen || inventoryOpen || medicOpen) { CloseCombinedShop(); CloseInventory(); CloseMedic(); }
+            return;
+        }
+        if (e.Key.Equals("i", StringComparison.OrdinalIgnoreCase)) OpenInventory();
+        else if (e.Key.Equals("m", StringComparison.OrdinalIgnoreCase)) OpenCombinedShop();
+        else if (e.Key.Equals("u", StringComparison.OrdinalIgnoreCase) && combinedShopOpen) SelectShopTab("upgrade");
+    }
+
+    async Task BuyFullHeal()
+    {
+        if (Engine.TryFullHeal())
+        {
+            await SaveAsync();
+            CloseMedic();
+            ShowToast("Drumstick acquired. HP is full.");
+        }
+        else
+        {
+            ShowToast(Engine.Hp >= Engine.MaxHp ? "You are already full HP. Save the chicken." : "Too broke for this one.");
+        }
+    }
+
+    async Task BuyGlove()
+    {
+        if (Engine.BuyGlove()) { await SaveAsync(); ShowToast($"Glove upgraded to Tier {Engine.GloveTier}."); }
+        else ShowToast("Too broke for this one.");
+    }
+
+    async Task BuyBasket()
+    {
+        if (Engine.BuyBasket()) { await SaveAsync(); ShowToast($"Bag upgraded to Tier {Engine.BasketTier}."); }
+        else ShowToast("Too broke for this one.");
+    }
+
+    async Task ToggleFavorite(string id)
+    {
+        Engine.ToggleFavorite(id);
+        await SaveAsync();
+    }
+
+    async Task SellCotton(string id)
+    {
+        var value = Engine.SellItem(id);
+        if (value > 0) { ClearInventoryHover(); await SaveAsync(); }
+        ShowToast(value > 0 ? $"Sold for {MoneyFormatter.Format(value)}." : "That cotton is favorite-protected. It lives.");
+    }
+
+    void ConfirmSellAll() => confirmingSellAll = true;
+    string UnfavoritedValue() => MoneyFormatter.Format(Engine.GetCottonInventory().Where(x => !x.Favorited).Aggregate(BigInteger.Zero, (total, item) => total + item.Value));
+
+    async Task DoSellAll()
+    {
+        confirmingSellAll = false;
+        var total = Engine.SellAllExceptFavorites();
+        if (total > 0) await SaveAsync();
+        ShowToast(total > 0 ? $"Sold for {MoneyFormatter.Format(total)}." : "Nothing to sell.");
+    }
+
+    async Task Respawn()
+    {
+        Engine.Respawn();
+        await SaveAsync();
+    }
+
+    void ShowToast(string message)
+    {
+        toast = message;
+        toastTimer?.Dispose();
+        toastTimer = new Timer(async _ =>
+        {
+            toast = null;
+            await InvokeAsync(StateHasChanged);
+        }, null, 1800, Timeout.Infinite);
+    }
+
+    public void Dispose()
+    {
+        tickTimer?.Dispose();
+        regenTimer?.Dispose();
+        toastTimer?.Dispose();
+    }
+}

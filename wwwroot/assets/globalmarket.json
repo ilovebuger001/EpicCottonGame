@@ -1,0 +1,50 @@
+{
+  "restockIntervalSeconds": 45,
+  "items": [
+    {
+      "id": "cotton_seed",
+      "name": "Cotton Seed",
+      "desc": "One tiny seed. One permanent stem. Please do not spend it on furniture.",
+      "kind": "seed",
+      "cost": 20,
+      "icon": "assets/img/sprout.png",
+      "maxStock": -1
+    },
+    {
+      "id": "rich_fertilizer",
+      "name": "Rich Fertilizer",
+      "desc": "Makes the next puff of cotton a little more ambitious.",
+      "kind": "fertilizer",
+      "cost": 10000,
+      "icon": "assets/img/fertilizer_rich.png",
+      "maxStock": 4,
+      "rarityMultiplier": 1.75,
+      "mutationMultiplier": 1.15,
+      "mutationChanceBonus": 0.001
+    },
+    {
+      "id": "mutation_catalyst",
+      "name": "Mutation Catalyst",
+      "desc": "Normal cotton was boring, so we made a chemistry problem.",
+      "kind": "fertilizer",
+      "cost": 25000,
+      "icon": "assets/img/fertilizer_mutation.png",
+      "maxStock": 2,
+      "rarityMultiplier": 1.15,
+      "mutationMultiplier": 2.5,
+      "mutationChanceBonus": 0.005
+    },
+    {
+      "id": "golden_catalyst",
+      "name": "Golden Catalyst",
+      "desc": "Throw money at the next harvest. Very scientific.",
+      "kind": "fertilizer",
+      "cost": 100000,
+      "icon": "assets/img/fertilizer_golden.png",
+      "maxStock": 2,
+      "rarityMultiplier": 2.0,
+      "mutationMultiplier": 3.0,
+      "mutationChanceBonus": 0.01
+    }
+  ]
+}
