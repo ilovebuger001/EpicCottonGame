@@ -397,10 +397,10 @@ else
 
                         <div class="account-section-label">SWITCH ACCOUNT</div>
                         <div class="account-input-row">
-                            <input class="account-input" @bind="accountInput" placeholder="player@example.com" />
+                            <input class="account-input" @bind="accountInput" @bind:event="oninput" placeholder="player@example.com" />
                         </div>
                         <div class="account-input-row">
-                            <input class="account-input" type="password" @bind="accountPasswordInput" placeholder="Password (if set)" />
+                            <input class="account-input" type="password" @bind="accountPasswordInput" @bind:event="oninput" placeholder="Password (if set)" />
                             <button type="button" class="pixel-btn confirm" @onclick="SwitchAccount">SWITCH</button>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(accountSwitchError))
@@ -411,7 +411,7 @@ else
                         <hr class="account-divider" />
                         <div class="account-section-label">SET PASSWORD FOR: @DisplayAccountId(accountId)</div>
                         <div class="account-input-row">
-                            <input class="account-input" type="password" @bind="accountNewPassword" placeholder="New password (blank = remove)" />
+                            <input class="account-input" type="password" @bind="accountNewPassword" @bind:event="oninput" placeholder="New password (blank = remove)" />
                             <button type="button" class="pixel-btn" @onclick="SetCurrentAccountPassword">SAVE</button>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(accountPasswordMsg))
