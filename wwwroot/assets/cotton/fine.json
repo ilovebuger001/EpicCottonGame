@@ -3,8 +3,8 @@
   "name": "Fine Cotton",
   "chance": "12/100",
   "dmg": [
-    25,
-    35
+    45,
+    50
   ],
   "value": 100,
   "growImg": "assets/img/sprout.png",
