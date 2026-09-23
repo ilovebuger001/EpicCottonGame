@@ -468,6 +468,40 @@ button, a, input, select, textarea {
   box-shadow: inset 1px 1px 0 var(--gold-shine), 2px 2px 0 var(--shadow-hard);
 }
 
+.account-section-label {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  color: var(--wood-dark);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.account-divider {
+  border: none;
+  border-top: 2px solid var(--wood-dark);
+  opacity: 0.2;
+  margin: 2px 0;
+}
+
+.account-error {
+  font-size: 11px;
+  font-weight: bold;
+  color: #c0392b;
+  background: #fde8e8;
+  border: 2px solid #c0392b;
+  padding: 6px 10px;
+}
+
+.account-password-msg {
+  font-size: 11px;
+  font-weight: bold;
+  color: #1a7a3a;
+  background: #e6f9ec;
+  border: 2px solid #1a7a3a;
+  padding: 6px 10px;
+}
+
 /* Targeting HUD Bar */
 .targeting-bar {
   position: fixed;

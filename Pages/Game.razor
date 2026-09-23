@@ -393,11 +393,32 @@ else
                         <button type="button" @onclick="CloseAccountModal">×</button>
                     </div>
                     <div class="account-window-body">
-                        <p>Progress is saved per account. Enter an email or player ID to switch accounts.</p>
+                        <p>Progress is saved per account. Enter an email or ID to switch accounts.</p>
+
+                        <div class="account-section-label">SWITCH ACCOUNT</div>
                         <div class="account-input-row">
-                            <input class="account-input" @bind="accountInput" placeholder="th.noppadon9888@gmail.com" />
+                            <input class="account-input" @bind="accountInput" placeholder="player@example.com" />
+                        </div>
+                        <div class="account-input-row">
+                            <input class="account-input" type="password" @bind="accountPasswordInput" placeholder="Password (if set)" />
                             <button type="button" class="pixel-btn confirm" @onclick="SwitchAccount">SWITCH</button>
                         </div>
+                        @if (!string.IsNullOrWhiteSpace(accountSwitchError))
+                        {
+                            <div class="account-error">⚠ @accountSwitchError</div>
+                        }
+
+                        <hr class="account-divider" />
+                        <div class="account-section-label">SET PASSWORD FOR: @DisplayAccountId(accountId)</div>
+                        <div class="account-input-row">
+                            <input class="account-input" type="password" @bind="accountNewPassword" placeholder="New password (blank = remove)" />
+                            <button type="button" class="pixel-btn" @onclick="SetCurrentAccountPassword">SAVE</button>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(accountPasswordMsg))
+                        {
+                            <div class="account-password-msg">@accountPasswordMsg</div>
+                        }
+
                         @if (IsSpecialAccount(accountId))
                         {
                             <div class="special-account-badge">
@@ -445,6 +466,10 @@ else
     bool confirmingSellAll;
     bool accountModalOpen;
     string accountInput = "";
+    string accountPasswordInput = "";
+    string accountNewPassword = "";
+    string accountSwitchError = "";
+    string accountPasswordMsg = "";
     string? loadError;
     string? targetItemId;
     bool pendingUse;
@@ -538,6 +563,10 @@ else
     void OpenAccountModal()
     {
         accountInput = accountId;
+        accountPasswordInput = "";
+        accountNewPassword = "";
+        accountSwitchError = "";
+        accountPasswordMsg = "";
         accountModalOpen = true;
     }
 
@@ -545,11 +574,43 @@ else
 
     async Task SwitchAccount()
     {
-        if (string.IsNullOrWhiteSpace(accountInput)) return;
-        accountId = accountInput.Trim();
+        accountSwitchError = "";
+        var target = accountInput.Trim();
+        if (string.IsNullOrWhiteSpace(target)) return;
+
+        // Check if the target account has a password
+        var hasPassword = await SaveService.AccountHasPasswordAsync(target);
+        if (hasPassword)
+        {
+            var ok = await SaveService.CheckAccountPasswordAsync(target, accountPasswordInput);
+            if (!ok)
+            {
+                accountSwitchError = "Wrong password.";
+                accountPasswordInput = "";
+                return;
+            }
+        }
+
+        accountId = target;
         await SaveService.SetAccountIdAsync(accountId);
         CloseAccountModal();
         await InitializeGameAsync();
+    }
+
+    async Task SetCurrentAccountPassword()
+    {
+        accountPasswordMsg = "";
+        if (string.IsNullOrWhiteSpace(accountNewPassword))
+        {
+            await SaveService.RemoveAccountPasswordAsync(accountId);
+            accountPasswordMsg = "Password removed.";
+        }
+        else
+        {
+            await SaveService.SetAccountPasswordAsync(accountId, accountNewPassword);
+            accountPasswordMsg = "Password saved!";
+        }
+        accountNewPassword = "";
     }
 
     async Task InitializeGameAsync()
