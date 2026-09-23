@@ -16,8 +16,8 @@ public sealed class GameEngine
     public const int RegrowMaxSeconds = 60;
     public const int SeedGrowthMinSeconds = 10;
     public const int SeedGrowthMaxSeconds = 100;
-    public const int PassiveRegenHpPerTick = 25;
-    public const int PassiveRegenIntervalSeconds = 3;
+    public const int PassiveRegenHpPerTick = 100;
+    public const int PassiveRegenIntervalSeconds = 10;
 
     static readonly JsonSerializerOptions JsonOpts = CreateJsonOptions();
     static readonly string[] CottonConfigFiles = ["common", "fine", "premium", "rare", "royal", "epic", "mythic", "celestial", "divine", "golden"];
