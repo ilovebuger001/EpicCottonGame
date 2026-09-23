@@ -1,3 +1,4 @@
+﻿using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -5,15 +6,25 @@ using Microsoft.JSInterop;
 
 namespace EpicCottonGame.Services;
 
-/// <summary>Browser-local save storage with a lightweight integrity check for classroom use.</summary>
-public sealed class LocalSaveService(IJSRuntime js)
+/// <summary>
+/// Save storage that uses localStorage for all accounts and additionally
+/// syncs named accounts (non-EC-XXXX) with Firebase Realtime Database
+/// so progress is shared across devices.
+/// </summary>
+public sealed class LocalSaveService(IJSRuntime js, HttpClient http)
 {
-    const string SaveKey = "epic-cotton-game.save.v5";
+    const string SaveKey    = "epic-cotton-game.save.v5";
     const string AccountKey = "epic-cotton-game.account.v1";
-    const string SecretKey = "epic-cotton-game.integrity.v5";
-    const string PwdKeyPrefix = "epic-cotton-game.pwd.";
+    const string SecretKey  = "epic-cotton-game.integrity.v5";
+    const string FirebaseUrl = "https://epiccottongame-default-rtdb.firebaseio.com";
 
     static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    static bool IsCloudAccount(string id) =>
+        !string.IsNullOrWhiteSpace(id) && !id.StartsWith("EC-", StringComparison.OrdinalIgnoreCase);
+
+    static string FirebaseKey(string accountId) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(accountId.ToLowerInvariant())));
 
     // --- Account identity ---
 
@@ -26,10 +37,8 @@ public sealed class LocalSaveService(IJSRuntime js)
     public async Task<string> GetAccountIdAsync()
     {
         var id = await js.InvokeAsync<string?>("localStorage.getItem", AccountKey);
-        if (!string.IsNullOrWhiteSpace(id))
-            return id.Trim();
+        if (!string.IsNullOrWhiteSpace(id)) return id.Trim();
 
-        // Fall back to a URL-passed email stored by JS
         var email = await js.InvokeAsync<string?>("localStorage.getItem", "email");
         if (!string.IsNullOrWhiteSpace(email))
         {
@@ -42,95 +51,172 @@ public sealed class LocalSaveService(IJSRuntime js)
         return id;
     }
 
-    // --- Per-account password (SHA-256 hash stored in localStorage) ---
+    // --- Password management ---
 
-    static string PwdKey(string accountId) =>
-        PwdKeyPrefix + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(accountId.ToLowerInvariant())));
+    string PwdLocalKey(string accountId) =>
+        "epic-cotton-game.pwd." + FirebaseKey(accountId);
 
     public async Task<bool> AccountHasPasswordAsync(string accountId)
     {
-        var stored = await js.InvokeAsync<string?>("localStorage.getItem", PwdKey(accountId));
+        if (IsCloudAccount(accountId))
+        {
+            try
+            {
+                var hash = await http.GetFromJsonAsync<string?>($"{FirebaseUrl}/passwords/{FirebaseKey(accountId)}.json");
+                if (!string.IsNullOrWhiteSpace(hash)) return true;
+            }
+            catch { }
+        }
+        var stored = await js.InvokeAsync<string?>("localStorage.getItem", PwdLocalKey(accountId));
         return !string.IsNullOrWhiteSpace(stored);
     }
 
     public async Task<bool> CheckAccountPasswordAsync(string accountId, string password)
     {
-        var stored = await js.InvokeAsync<string?>("localStorage.getItem", PwdKey(accountId));
-        if (string.IsNullOrWhiteSpace(stored)) return true; // no password set
+        string? stored = null;
+        if (IsCloudAccount(accountId))
+        {
+            try { stored = await http.GetFromJsonAsync<string?>($"{FirebaseUrl}/passwords/{FirebaseKey(accountId)}.json"); }
+            catch { }
+        }
+        if (string.IsNullOrWhiteSpace(stored))
+            stored = await js.InvokeAsync<string?>("localStorage.getItem", PwdLocalKey(accountId));
+        if (string.IsNullOrWhiteSpace(stored)) return true;
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(password ?? "")));
-        return CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(stored),
-            Encoding.UTF8.GetBytes(hash));
+        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(stored), Encoding.UTF8.GetBytes(hash));
     }
 
     public async Task SetAccountPasswordAsync(string accountId, string password)
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(password)));
-        await js.InvokeVoidAsync("localStorage.setItem", PwdKey(accountId), hash);
+        await js.InvokeVoidAsync("localStorage.setItem", PwdLocalKey(accountId), hash);
+        if (IsCloudAccount(accountId))
+        {
+            try { await http.PutAsJsonAsync($"{FirebaseUrl}/passwords/{FirebaseKey(accountId)}.json", hash); }
+            catch { }
+        }
     }
 
     public async Task RemoveAccountPasswordAsync(string accountId)
     {
-        await js.InvokeVoidAsync("localStorage.removeItem", PwdKey(accountId));
+        await js.InvokeVoidAsync("localStorage.removeItem", PwdLocalKey(accountId));
+        if (IsCloudAccount(accountId))
+        {
+            try { await http.DeleteAsync($"{FirebaseUrl}/passwords/{FirebaseKey(accountId)}.json"); }
+            catch { }
+        }
     }
+
+    // --- Load ---
 
     public async Task<SaveLoadResult<T>> LoadAsync<T>(string accountId)
     {
-        var raw = await js.InvokeAsync<string?>("localStorage.getItem", SaveKey);
-        if (string.IsNullOrWhiteSpace(raw))
-            return new(false, true, default);
+        var localEnv = await LoadLocalEnvelopeAsync(accountId);
+        SaveEnvelope? cloudEnv = null;
+        if (IsCloudAccount(accountId)) cloudEnv = await LoadCloudEnvelopeAsync(accountId);
+
+        var best = PickNewer(localEnv, cloudEnv);
+        if (best == null) return new(false, true, default);
+
+        if (cloudEnv != null && best == cloudEnv && best != localEnv)
+        {
+            try
+            {
+                var raw = JsonSerializer.Serialize(best, JsonOptions);
+                await js.InvokeVoidAsync("localStorage.setItem", SaveKey, raw);
+            }
+            catch { }
+        }
 
         try
         {
-            var envelope = JsonSerializer.Deserialize<SaveEnvelope>(raw, JsonOptions);
-            if (envelope == null || envelope.AccountId != accountId || envelope.Version != 5)
-                return new(true, false, default);
-
-            var secret = await GetOrCreateSecretAsync();
-            var expected = Sign(accountId, envelope.Data, secret);
-            if (!CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(envelope.Signature)))
-                return new(true, false, default);
-
-            var data = JsonSerializer.Deserialize<T>(envelope.Data, JsonOptions);
+            var data = JsonSerializer.Deserialize<T>(best.Data, JsonOptions);
             return new(true, data != null, data);
         }
-        catch
-        {
-            return new(true, false, default);
-        }
+        catch { return new(true, false, default); }
     }
+
+    // --- Save ---
 
     public async Task SaveAsync<T>(string accountId, T data)
     {
         try
         {
             var serialized = JsonSerializer.Serialize(data, JsonOptions);
-            var secret = await GetOrCreateSecretAsync();
-            var envelope = new SaveEnvelope
+            var secret     = await GetOrCreateSecretAsync();
+            var envelope   = new SaveEnvelope
             {
-                Version = 5,
-                AccountId = accountId,
+                Version    = 5,
+                AccountId  = accountId,
                 SavedAtUtc = DateTime.UtcNow,
-                Data = serialized,
-                Signature = Sign(accountId, serialized, secret)
+                Data       = serialized,
+                Signature  = Sign(accountId, serialized, secret)
             };
-
             var raw = JsonSerializer.Serialize(envelope, JsonOptions);
             await js.InvokeVoidAsync("localStorage.setItem", SaveKey, raw);
+            if (IsCloudAccount(accountId)) _ = PushToCloudAsync(accountId, envelope);
         }
-        catch
+        catch { }
+    }
+
+    // --- Private helpers ---
+
+    async Task<SaveEnvelope?> LoadLocalEnvelopeAsync(string accountId)
+    {
+        try
         {
-            // Browser storage can be unavailable or full; the running game remains playable.
+            var raw = await js.InvokeAsync<string?>("localStorage.getItem", SaveKey);
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var env = JsonSerializer.Deserialize<SaveEnvelope>(raw, JsonOptions);
+            if (env == null || env.Version != 5) return null;
+            if (!string.Equals(env.AccountId, accountId, StringComparison.OrdinalIgnoreCase)) return null;
+            var secret   = await GetOrCreateSecretAsync();
+            var expected = Sign(env.AccountId, env.Data, secret);
+            if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(env.Signature))) return null;
+            return env;
         }
+        catch { return null; }
+    }
+
+    async Task<SaveEnvelope?> LoadCloudEnvelopeAsync(string accountId)
+    {
+        try
+        {
+            var env = await http.GetFromJsonAsync<SaveEnvelope?>($"{FirebaseUrl}/saves/{FirebaseKey(accountId)}.json", JsonOptions);
+            if (env == null || env.Version != 5) return null;
+            return env;
+        }
+        catch { return null; }
+    }
+
+    async Task PushToCloudAsync(string accountId, SaveEnvelope envelope)
+    {
+        try
+        {
+            var cloudEnv = new SaveEnvelope
+            {
+                Version    = envelope.Version,
+                AccountId  = envelope.AccountId,
+                SavedAtUtc = envelope.SavedAtUtc,
+                Data       = envelope.Data,
+                Signature  = ""
+            };
+            await http.PutAsJsonAsync($"{FirebaseUrl}/saves/{FirebaseKey(accountId)}.json", cloudEnv, JsonOptions);
+        }
+        catch { }
+    }
+
+    static SaveEnvelope? PickNewer(SaveEnvelope? a, SaveEnvelope? b)
+    {
+        if (a == null) return b;
+        if (b == null) return a;
+        return b.SavedAtUtc > a.SavedAtUtc ? b : a;
     }
 
     async Task<string> GetOrCreateSecretAsync()
     {
         var secret = await js.InvokeAsync<string?>("localStorage.getItem", SecretKey);
-        if (!string.IsNullOrWhiteSpace(secret))
-            return secret;
-
+        if (!string.IsNullOrWhiteSpace(secret)) return secret;
         secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         await js.InvokeVoidAsync("localStorage.setItem", SecretKey, secret);
         return secret;
@@ -144,11 +230,11 @@ public sealed class LocalSaveService(IJSRuntime js)
 
     sealed class SaveEnvelope
     {
-        public int Version { get; set; }
-        public string AccountId { get; set; } = "";
+        public int      Version    { get; set; }
+        public string   AccountId  { get; set; } = "";
         public DateTime SavedAtUtc { get; set; }
-        public string Data { get; set; } = "";
-        public string Signature { get; set; } = "";
+        public string   Data       { get; set; } = "";
+        public string   Signature  { get; set; } = "";
     }
 
     public readonly record struct SaveLoadResult<T>(bool Found, bool Valid, T? Data);
