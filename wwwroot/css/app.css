@@ -386,6 +386,88 @@ button, a, input, select, textarea {
   color: var(--gold-light);
 }
 
+.world-control-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--wood-mid);
+  border: 2px solid var(--wood-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--wood-highlight),
+    inset -1px -1px 0 var(--shadow-hard),
+    3px 3px 0 var(--shadow-hard);
+  font-size: 8px;
+  color: var(--parchment);
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.world-control-btn:hover {
+  background: var(--wood-light);
+}
+
+.world-control-btn b {
+  color: var(--gold-light);
+}
+
+.account-window {
+  width: 440px;
+  max-width: 90vw;
+  height: auto;
+  max-height: 340px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-window-body p {
+  font-size: 11px;
+  color: var(--wood-dark);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.account-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.account-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  background: #fff;
+  border: 2px solid var(--wood-dark);
+  box-shadow: inset 1px 1px 0 var(--shadow-hard);
+  color: var(--wood-dark);
+  outline: none;
+}
+
+.account-input:focus {
+  border-color: var(--gold-dark);
+}
+
+.special-account-badge {
+  padding: 8px 12px;
+  background: var(--gold-mid);
+  border: 2px solid var(--gold-dark);
+  color: var(--wood-dark);
+  font-weight: bold;
+  font-size: 11px;
+  text-align: center;
+  box-shadow: inset 1px 1px 0 var(--gold-shine), 2px 2px 0 var(--shadow-hard);
+}
+
 /* Targeting HUD Bar */
 .targeting-bar {
   position: fixed;

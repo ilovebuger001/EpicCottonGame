@@ -14,11 +14,24 @@ public sealed class LocalSaveService(IJSRuntime js)
 
     static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task SetAccountIdAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        await js.InvokeVoidAsync("localStorage.setItem", AccountKey, id.Trim());
+    }
+
     public async Task<string> GetAccountIdAsync()
     {
         var id = await js.InvokeAsync<string?>("localStorage.getItem", AccountKey);
         if (!string.IsNullOrWhiteSpace(id))
-            return id;
+            return id.Trim();
+
+        var email = await js.InvokeAsync<string?>("localStorage.getItem", "email");
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            await js.InvokeVoidAsync("localStorage.setItem", AccountKey, email.Trim());
+            return email.Trim();
+        }
 
         id = $"EC-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
         await js.InvokeVoidAsync("localStorage.setItem", AccountKey, id);

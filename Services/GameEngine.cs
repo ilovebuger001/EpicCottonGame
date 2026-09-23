@@ -566,6 +566,11 @@ public BigInteger SellItem(string cottonId)
         };
     }
 
+    public void SetMoney(BigInteger amount)
+    {
+        Money = amount >= 0 ? amount : BigInteger.Zero;
+    }
+
     public bool RestoreSaveState(GameSaveState save)
     {
         if ((save.Version != 5 && save.Version != 6 && save.Version != 7 && save.Version != 8 && save.Version != 9) || !BigInteger.TryParse(save.Money, out var money) || money < 0 || save.GloveTier < 1 || save.BasketTier < 1)

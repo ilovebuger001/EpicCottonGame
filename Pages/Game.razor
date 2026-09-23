@@ -6,6 +6,7 @@
 @inject HttpClient Http
 @inject GameEngine Engine
 @inject LocalSaveService SaveService
+@inject NavigationManager Nav
 
 <PageTitle>EpicCottonGame</PageTitle>
 
@@ -114,6 +115,9 @@ else
                 <span><b>WHEEL</b> ZOOM</span>
                 <span><b>RIGHT-CLICK BAG</b> INVENTORY</span>
                 <span><b>SPACE</b> CENTER MAP</span>
+                <button type="button" class="world-control-btn" @onclick="OpenAccountModal">
+                    <b>ID</b> @DisplayAccountId(accountId)
+                </button>
             </div>
 
             <button id="basket" class="world-bag @(Engine.IsDead ? "disabled" : "") @(draggingCottonIdx != null ? "drop-ready" : "")"
@@ -380,6 +384,31 @@ else
             </div>
         }
 
+        @if (accountModalOpen)
+        {
+            <div class="modal-layer" @onclick="CloseAccountModal">
+                <section class="menu-window account-window" @onclick:stopPropagation="true">
+                    <div class="window-header">
+                        <div><small>PLAYER</small><h2>ACCOUNT / EMAIL</h2></div>
+                        <button type="button" @onclick="CloseAccountModal">×</button>
+                    </div>
+                    <div class="account-window-body">
+                        <p>Progress is saved per account. Enter an email or player ID to switch accounts.</p>
+                        <div class="account-input-row">
+                            <input class="account-input" @bind="accountInput" placeholder="th.noppadon9888@gmail.com" />
+                            <button type="button" class="pixel-btn confirm" @onclick="SwitchAccount">SWITCH</button>
+                        </div>
+                        @if (IsSpecialAccount(accountId))
+                        {
+                            <div class="special-account-badge">
+                                ✦ VIP ACCOUNT ACTIVE (67,676,676 COINS)
+                            </div>
+                        }
+                    </div>
+                </section>
+            </div>
+        }
+
         @if (Engine.IsDead)
         {
             <div class="death-layer">
@@ -414,6 +443,8 @@ else
     bool inventoryOpen;
     bool medicOpen;
     bool confirmingSellAll;
+    bool accountModalOpen;
+    string accountInput = "";
     string? loadError;
     string? targetItemId;
     bool pendingUse;
@@ -467,6 +498,60 @@ else
         await InitializeGameAsync();
     }
 
+    const string SpecialEmail = "th.noppadon9888@gmail.com";
+    static readonly BigInteger SpecialAccountStartingCoins = new(67676676);
+
+    bool IsSpecialAccount(string? id)
+        => !string.IsNullOrWhiteSpace(id) && id.Trim().Equals(SpecialEmail, StringComparison.OrdinalIgnoreCase);
+
+    static string? ExtractQueryParam(string uriString, string key)
+    {
+        var qIdx = uriString.IndexOf('?');
+        if (qIdx < 0 || qIdx == uriString.Length - 1) return null;
+        var query = uriString[(qIdx + 1)..];
+        var hashIdx = query.IndexOf('#');
+        if (hashIdx >= 0) query = query[..hashIdx];
+        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length == 2 && kv[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(kv[1].Trim());
+        }
+        return null;
+    }
+
+    void ApplySpecialEmailBonus()
+    {
+        if (IsSpecialAccount(accountId))
+        {
+            Engine.SetMoney(SpecialAccountStartingCoins);
+        }
+    }
+
+    string DisplayAccountId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return "PLAYER";
+        if (id.Length > 16) return id[..13] + "...";
+        return id;
+    }
+
+    void OpenAccountModal()
+    {
+        accountInput = accountId;
+        accountModalOpen = true;
+    }
+
+    void CloseAccountModal() => accountModalOpen = false;
+
+    async Task SwitchAccount()
+    {
+        if (string.IsNullOrWhiteSpace(accountInput)) return;
+        accountId = accountInput.Trim();
+        await SaveService.SetAccountIdAsync(accountId);
+        CloseAccountModal();
+        await InitializeGameAsync();
+    }
+
     async Task InitializeGameAsync()
     {
         try
@@ -474,24 +559,44 @@ else
             loadError = null;
             loaded = false;
             await Engine.LoadConfigAsync(Http);
+
+            var qEmail = ExtractQueryParam(Nav.Uri, "email") ?? ExtractQueryParam(Nav.Uri, "account") ?? ExtractQueryParam(Nav.Uri, "id");
+            if (!string.IsNullOrWhiteSpace(qEmail))
+            {
+                await SaveService.SetAccountIdAsync(qEmail);
+            }
+
             accountId = await SaveService.GetAccountIdAsync();
             var result = await SaveService.LoadAsync<GameSaveState>(accountId);
             if (result.Valid && result.Data != null)
             {
                 if (!Engine.RestoreSaveState(result.Data))
                 {
+                    ApplySpecialEmailBonus();
                     await SaveAsync();
                     ShowToast("New save secured. Try not to become a millionaire in five minutes.");
+                }
+                else
+                {
+                    ApplySpecialEmailBonus();
+                    await SaveAsync();
                 }
             }
             else if (result.Found)
             {
+                ApplySpecialEmailBonus();
                 await SaveAsync();
                 ShowToast("Your save survived the chaos.");
             }
             else
             {
+                ApplySpecialEmailBonus();
                 await SaveAsync();
+            }
+
+            if (IsSpecialAccount(accountId))
+            {
+                ShowToast("VIP Account: 67,676,676 coins secured.");
             }
 
             loaded = true;
@@ -977,7 +1082,7 @@ else
             if (pendingUse) CancelPending();
             else if (targetItemId != null) CancelTargeting();
             else if (confirmingSellAll) confirmingSellAll = false;
-            else if (combinedShopOpen || inventoryOpen || medicOpen) { CloseCombinedShop(); CloseInventory(); CloseMedic(); }
+            else if (combinedShopOpen || inventoryOpen || medicOpen || accountModalOpen) { CloseCombinedShop(); CloseInventory(); CloseMedic(); CloseAccountModal(); }
             return;
         }
         if (e.Key.Equals("i", StringComparison.OrdinalIgnoreCase)) OpenInventory();
