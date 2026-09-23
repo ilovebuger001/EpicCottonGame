@@ -3,8 +3,8 @@
   "name": "Common Cotton",
   "chance": "79.99999/100",
   "dmg": [
-    0,
-    0
+    20,
+    25
   ],
   "value": 25,
   "growImg": "assets/img/sprout.png",
