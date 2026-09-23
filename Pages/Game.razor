@@ -575,7 +575,7 @@ else
     async Task SwitchAccount()
     {
         accountSwitchError = "";
-        var target = accountInput.Trim();
+        var target = accountInput.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(target)) return;
 
         // Check if the target account has a password
