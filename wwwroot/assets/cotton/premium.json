@@ -4,7 +4,7 @@
   "chance": "6/100",
   "dmg": [
     150,
-    220
+    160
   ],
   "value": 500,
   "growImg": "assets/img/sprout.png",
