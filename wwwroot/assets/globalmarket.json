@@ -1,5 +1,5 @@
 {
-  "restockIntervalSeconds": 45,
+  "restockIntervalSeconds": 600,
   "items": [
     {
       "id": "cotton_seed",
@@ -17,7 +17,7 @@
       "kind": "fertilizer",
       "cost": 911,
       "icon": "assets/img/fertilizer_rich.png",
-      "maxStock": 4,
+      "maxStock": 10,
       "rarityMultiplier": 2.5,
       "mutationMultiplier": 1.15,
       "mutationChanceBonus": 0.05
@@ -29,7 +29,7 @@
       "kind": "fertilizer",
       "cost": 271,
       "icon": "assets/img/fertilizer_mutation.png",
-      "maxStock": 2,
+      "maxStock": 5,
       "rarityMultiplier": 1.15,
       "mutationMultiplier": 2.5,
       "mutationChanceBonus": 0.1
@@ -41,7 +41,7 @@
       "kind": "fertilizer",
       "cost": 6767,
       "icon": "assets/img/fertilizer_golden.png",
-      "maxStock": 1,
+      "maxStock": 3,
       "rarityMultiplier": 6,
       "mutationMultiplier": 7,
       "mutationChanceBonus": 1
