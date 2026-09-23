@@ -174,8 +174,8 @@ public sealed class GameEngine
         double Weight(CottonType type)
         {
             var rank = Math.Max(0, CottonTypes.IndexOf(type));
-            // Fertilizer improves higher rarities, but with a soft curve so even strong stacks remain rare.
-            return type.ChanceFraction * Math.Pow(rarityMultiplier, rank * 0.18d);
+            // Fertilizer improves higher rarities based on configured rarityMultiplier.
+            return type.ChanceFraction * Math.Pow(rarityMultiplier, rank * 0.5d);
         }
 
         var total = CottonTypes.Sum(Weight);
@@ -208,19 +208,27 @@ public sealed class GameEngine
         foreach (var entry in adjusted)
             noMutationProbability *= 1d - entry.Chance;
 
-        var totalMutationChance = Math.Clamp(1d - noMutationProbability + bonus, 0, 0.05d);
+        var totalMutationChance = Math.Clamp(1d - noMutationProbability + bonus, 0, 1.0d);
         if (rng.NextDouble() >= totalMutationChance) return null;
 
         // Once a mutation happens, select its type by adjusted rarity weight.
-        var totalWeight = adjusted.Sum(x => x.Chance);
+        // Rarity rank boosts rarer mutations exponentially with the fertilizer's mutation multiplier.
+        double MutationWeight(MutationConfig m)
+        {
+            var rank = Math.Max(0, Mutations.IndexOf(m));
+            return m.ChanceFraction * Math.Pow(multiplier, rank * 0.5d);
+        }
+
+        var totalWeight = Mutations.Sum(MutationWeight);
         if (totalWeight <= 0) return null;
         var roll = rng.NextDouble() * totalWeight;
-        foreach (var entry in adjusted)
+        foreach (var m in Mutations)
         {
-            if (roll < entry.Chance) return entry.Mutation;
-            roll -= entry.Chance;
+            var weight = MutationWeight(m);
+            if (roll < weight) return m;
+            roll -= weight;
         }
-        return adjusted[^1].Mutation;
+        return Mutations[^1];
     }
 
     DateTime RollReadyAt(int minSeconds, int maxSeconds)
@@ -236,7 +244,7 @@ public sealed class GameEngine
         if (inventory.GetValueOrDefault(itemId) <= 0 || !marketItemsById.TryGetValue(itemId, out var item)) return false;
         if (item.Kind.Equals("seed", StringComparison.OrdinalIgnoreCase)) return CanPlantAt(x, y);
         if (item.Kind.Equals("fertilizer", StringComparison.OrdinalIgnoreCase) && stems.TryGetValue((x, y), out var stem))
-            return !stem.HasFertilizer(item.Id);
+            return stem.State == StemState.Growing && !stem.HasFertilizer(item.Id);
         return false;
     }
 
@@ -267,19 +275,11 @@ public sealed class GameEngine
         if (item.Kind.Equals("fertilizer", StringComparison.OrdinalIgnoreCase))
         {
             var stem = stems[(x, y)];
-            if (stem.HasFertilizer(item.Id)) return false;
+            if (stem.State != StemState.Growing || stem.HasFertilizer(item.Id)) return false;
 
             Consume(itemId);
             stem.FertilizerIds.Add(item.Id);
             RecalculateFertilizerEffects(stem);
-
-            // A ready stem represents the next harvest already sitting there,
-            // so adding fertilizer now refreshes that harvest's rarity/mutation roll.
-            if (stem.State == StemState.Ready && stem.Type != null)
-            {
-                stem.Type = RollType(stem);
-                stem.Mutation = RollMutation(stem);
-            }
             return true;
         }
 
@@ -302,7 +302,7 @@ public sealed class GameEngine
 
         stem.RarityMultiplier = Math.Clamp(rarity, 1, 1000);
         stem.MutationMultiplier = Math.Clamp(mutation, 1, 1000);
-        stem.MutationChanceBonus = Math.Clamp(bonus, 0, 0.8);
+        stem.MutationChanceBonus = Math.Clamp(bonus, 0, 1.0);
     }
 
     public bool IsReadyAt(int x, int y)

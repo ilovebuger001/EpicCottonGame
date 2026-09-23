@@ -180,6 +180,46 @@ button, a, input, select, textarea {
   animation: target-blink 0.8s steps(2, start) infinite;
 }
 
+.world-slot.selected-target::before {
+  content: "";
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border: 3px solid var(--confirm-light);
+  background: rgba(80, 168, 40, 0.32);
+  box-shadow: 0 0 10px rgba(131, 219, 70, 0.7);
+  animation: none;
+  z-index: 2;
+}
+
+.target-selected-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  background: var(--confirm-mid);
+  border: 2px solid var(--confirm-dark);
+  box-shadow: 
+    inset 1px 1px 0 var(--confirm-light),
+    inset -1px -1px 0 var(--confirm-dark),
+    2px 2px 0 var(--shadow-hard);
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  pointer-events: none;
+  animation: badge-pop 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.5); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .world-slot.targetable .plant-marker {
   position: relative;
   z-index: 1;
@@ -344,6 +384,75 @@ button, a, input, select, textarea {
 
 .world-controls b {
   color: var(--gold-light);
+}
+
+/* Targeting HUD Bar */
+.targeting-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  background: var(--parchment);
+  border: 4px solid var(--wood-dark);
+  box-shadow: 
+    inset 2px 2px 0 var(--wood-highlight),
+    inset -2px -2px 0 var(--shadow-hard),
+    5px 5px 0 var(--shadow-hard);
+  animation: hud-slide-up 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes hud-slide-up {
+  0% { transform: translate(-50%, 20px); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.targeting-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.targeting-bar-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(2px 2px 0 rgba(20, 11, 5, 0.4));
+}
+
+.targeting-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.targeting-bar-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--wood-dark);
+  letter-spacing: 0.5px;
+}
+
+.targeting-bar-status {
+  font-size: 11px;
+  color: var(--gold-dark);
+  font-weight: bold;
+}
+
+.targeting-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.targeting-bar-actions .pixel-btn {
+  padding: 8px 16px;
+  font-size: 12px;
 }
 
 /* 3. MODAL LAYERS & STEPPED PIXEL WINDOWS */

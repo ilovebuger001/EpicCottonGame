@@ -54,10 +54,12 @@ else
                         var wy = CameraY + row - HalfRows;
                         var hasStem = Engine.TryGetStem(wx, wy, out var stem);
                         var targetable = !string.IsNullOrWhiteSpace(targetItemId) && Engine.IsTargetValid(targetItemId, wx, wy);
+                        var isSelected = pendingTargets.Contains((wx, wy));
                         var ready = hasStem && stem!.State == StemState.Ready && stem.Type != null;
                         var growing = hasStem && stem!.State == StemState.Growing;
                         var classes = hasStem ? $"world-slot stem-slot {(ready ? "ready" : "growing")}" : "world-slot";
-                        if (targetable) classes += " targetable";
+                        if (targetable || isSelected) classes += " targetable";
+                        if (isSelected) classes += " selected-target";
                         if (stem?.IsFertilized == true) classes += " fertilized";
 
                         <button class="@classes"
@@ -75,15 +77,20 @@ else
                                     {
                                         <img class="mutation-overlay" src="@mutationIcon" alt="@stem.Mutation.Name mutation" />
                                     }
+                                    @if (stem!.IsFertilized)
+                                    {
+                                        <span class="fertilizer-mark">✦</span>
+                                    }
                                 </div>
-                                @if (stem!.IsFertilized)
-                                {
-                                    <span class="fertilizer-mark">✦</span>
-                                }
                             }
                             else if (targetable && TargetKind() == "seed")
                             {
                                 <span class="plant-marker">+</span>
+                            }
+
+                            @if (isSelected)
+                            {
+                                <span class="target-selected-badge">✓</span>
                             }
                         </button>
                     }
@@ -333,6 +340,30 @@ else
             </div>
         }
 
+        @if (!string.IsNullOrWhiteSpace(targetItemId) && !pendingUse)
+        {
+            var activeItem = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == targetItemId)?.Item;
+            var available = Engine.GetInventoryCount(targetItemId);
+            <div class="targeting-bar">
+                <div class="targeting-bar-info">
+                    @if (activeItem != null)
+                    {
+                        <img src="@activeItem.Icon" alt="" class="targeting-bar-icon" />
+                        <div class="targeting-bar-text">
+                            <span class="targeting-bar-name">@activeItem.Name.ToUpperInvariant()</span>
+                            <span class="targeting-bar-status">SELECTED: @pendingTargets.Count / @available</span>
+                        </div>
+                    }
+                </div>
+                <div class="targeting-bar-actions">
+                    <button class="pixel-btn confirm" type="button" disabled="@(pendingTargets.Count == 0)" @onclick="OpenConfirmPending">
+                        CONFIRM (@pendingTargets.Count)
+                    </button>
+                    <button class="pixel-btn ghost" type="button" @onclick="CancelTargeting">CANCEL</button>
+                </div>
+            </div>
+        }
+
         @if (confirmingSellAll)
         {
             <div class="confirm-layer">
@@ -387,8 +418,7 @@ else
     string? targetItemId;
     bool pendingUse;
     string? pendingItemId;
-    int pendingX;
-    int pendingY;
+    HashSet<(int X, int Y)> pendingTargets = new();
     string? selectedInventoryItemId;
     string? hoveredInventoryItemId;
     bool inventoryPopupActive;
@@ -496,7 +526,7 @@ else
 
     async Task SaveAsync() => await SaveService.SaveAsync(accountId, Engine.CaptureSaveState());
 
-    string WorldSlotStyle(int x, int y, int size = 72)
+    string WorldSlotStyle(int x, int y, int size = SlotSizePx)
         => $"left:calc(50% + {((x - CameraX) * SlotSizePx + panX):0.##}px);top:calc(50% + {((y - CameraY) * SlotSizePx + panY):0.##}px);width:{size}px;height:{size}px;transform:translate(-50%,-50%);";
 
     void OnAnyMouseDown(MouseEventArgs e)
@@ -623,7 +653,7 @@ else
 
     void OnWorldMouseDown(int x, int y, CottonStem? stem, MouseEventArgs e)
     {
-        if (e.Button != 0 || stem == null) return;
+        if (e.Button != 0 || stem == null || targetItemId != null) return;
         OnCottonDown(stem, e);
     }
 
@@ -662,12 +692,21 @@ else
         }
         if (targetItemId != null)
         {
+            if (pendingTargets.Contains((x, y)))
+            {
+                pendingTargets.Remove((x, y));
+                return;
+            }
+
             if (Engine.IsTargetValid(targetItemId, x, y))
             {
-                pendingItemId = targetItemId;
-                pendingX = x;
-                pendingY = y;
-                pendingUse = true;
+                var available = Engine.GetInventoryCount(targetItemId);
+                if (pendingTargets.Count >= available)
+                {
+                    ShowToast($"All {available} available items selected. Press CONFIRM or Space to proceed.");
+                    return;
+                }
+                pendingTargets.Add((x, y));
             }
             return;
         }
@@ -830,42 +869,86 @@ else
         targetItemId = itemId;
         pendingItemId = null;
         pendingUse = false;
-        ShowToast("Pick any cotton stem.");
+        pendingTargets.Clear();
+        var row = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == itemId);
+        var kind = row?.Item.Kind == "seed" ? "empty ground slots" : "growing stems";
+        ShowToast($"Click {kind} to select. Press SPACE or CONFIRM when ready.");
     }
 
-void CancelTargeting()
+    void OpenConfirmPending()
+    {
+        if (string.IsNullOrWhiteSpace(targetItemId) || pendingTargets.Count == 0) return;
+        pendingItemId = targetItemId;
+        pendingUse = true;
+    }
+
+    void CancelPending()
+    {
+        pendingUse = false;
+        pendingItemId = null;
+    }
+
+    void CancelTargeting()
     {
         targetItemId = null;
         pendingItemId = null;
         pendingUse = false;
+        pendingTargets.Clear();
     }
 
-    string PendingTitle() => Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == pendingItemId)?.Item.Name.ToUpperInvariant() ?? "DO THE THING";
+    string PendingTitle() => Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == (pendingItemId ?? targetItemId))?.Item.Name.ToUpperInvariant() ?? "DO THE THING";
 
     string PendingDescription()
     {
-        var row = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == pendingItemId);
+        var id = pendingItemId ?? targetItemId;
+        var row = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == id);
+        var count = pendingTargets.Count;
         return row?.Item.Kind switch
         {
-            "seed" => $"Plant one permanent cotton stem here? Your wallet may notice.",
-            "fertilizer" => $"Give this stem {row.Item.Name}? It stacks with other fertilizer types, but not itself twice.",
-            _ => "Use this thing?"
+            "seed" => count <= 1
+                ? "Plant one permanent cotton stem here? Your wallet may notice."
+                : $"Plant {count} permanent cotton stems in the selected spots? Your wallet may notice.",
+            "fertilizer" => count <= 1
+                ? $"Give this stem {row.Item.Name}? It stacks with other fertilizer types, but not itself twice."
+                : $"Give these {count} stems {row.Item.Name}? It stacks with other fertilizer types, but not itself twice.",
+            _ => count <= 1 ? "Use this thing?" : $"Use {count} of this thing?"
         };
     }
 
     async Task ConfirmPending()
     {
-        if (pendingItemId == null) return;
-        var id = pendingItemId;
-        var x = pendingX;
-        var y = pendingY;
-        CancelTargeting();
-        var ok = Engine.TryUseItemAt(id, x, y);
-        if (ok) await SaveAsync();
-        ShowToast(ok ? "Done. The plant got the good stuff." : "Too late. That spot is taken.");
-    }
+        var id = pendingItemId ?? targetItemId;
+        if (string.IsNullOrWhiteSpace(id) || pendingTargets.Count == 0)
+        {
+            CancelTargeting();
+            return;
+        }
 
-    void CancelPending() => CancelTargeting();
+        var targets = pendingTargets.ToList();
+        CancelTargeting();
+
+        var successCount = 0;
+        foreach (var (tx, ty) in targets)
+        {
+            if (Engine.TryUseItemAt(id, tx, ty))
+                successCount++;
+        }
+
+        if (successCount > 0)
+            await SaveAsync();
+
+        var item = Engine.GetMarketInventoryRows().FirstOrDefault(x => x.Item.Id == id)?.Item;
+        var itemName = item?.Name ?? "Item";
+        if (successCount > 0)
+        {
+            var actionText = item?.Kind == "seed" ? "Planted" : "Fertilized";
+            ShowToast($"{actionText} {successCount} spot{(successCount == 1 ? "" : "s")} with {itemName}.");
+        }
+        else
+        {
+            ShowToast("Could not use item on selected spots.");
+        }
+    }
 
     async Task BuyMarketItem(string id)
     {
@@ -883,6 +966,7 @@ void CancelTargeting()
         if (space)
         {
             if (pendingUse) { _ = ConfirmPending(); return; }
+            if (targetItemId != null && pendingTargets.Count > 0) { OpenConfirmPending(); return; }
             if (medicOpen) { _ = BuyFullHeal(); return; }
             if (inventoryOpen && selectedInventoryItemId != null) { BeginUseSelectedInventoryItem(); return; }
             CenterCamera();
@@ -890,7 +974,8 @@ void CancelTargeting()
         }
         if (e.Key == "Escape")
         {
-            if (pendingUse || targetItemId != null) CancelTargeting();
+            if (pendingUse) CancelPending();
+            else if (targetItemId != null) CancelTargeting();
             else if (confirmingSellAll) confirmingSellAll = false;
             else if (combinedShopOpen || inventoryOpen || medicOpen) { CloseCombinedShop(); CloseInventory(); CloseMedic(); }
             return;
