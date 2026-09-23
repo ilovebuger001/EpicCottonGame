@@ -18,9 +18,9 @@
       "cost": 10000,
       "icon": "assets/img/fertilizer_rich.png",
       "maxStock": 4,
-      "rarityMultiplier": 1.75,
+      "rarityMultiplier": 2.5,
       "mutationMultiplier": 1.15,
-      "mutationChanceBonus": 0.001
+      "mutationChanceBonus": 0.05
     },
     {
       "id": "mutation_catalyst",
@@ -32,19 +32,19 @@
       "maxStock": 2,
       "rarityMultiplier": 1.15,
       "mutationMultiplier": 2.5,
-      "mutationChanceBonus": 0.005
+      "mutationChanceBonus": 0.1
     },
     {
       "id": "golden_catalyst",
       "name": "Golden Catalyst",
       "desc": "Throw money at the next harvest. Very scientific.",
       "kind": "fertilizer",
-      "cost": 100000,
+      "cost": 67676,
       "icon": "assets/img/fertilizer_golden.png",
-      "maxStock": 2,
-      "rarityMultiplier": 2.0,
-      "mutationMultiplier": 3.0,
-      "mutationChanceBonus": 0.01
+      "maxStock": 1,
+      "rarityMultiplier": 6,
+      "mutationMultiplier": 7,
+      "mutationChanceBonus": 1
     }
   ]
 }
