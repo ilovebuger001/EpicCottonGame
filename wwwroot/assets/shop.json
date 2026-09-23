@@ -6,8 +6,8 @@
       "desc": "Your hand's tiny bodyguard. Less damage, more grabbing, fewer regrets.",
       "baseCost": 100,
       "costMultiplier": 2.5,
-      "effectPerTier": 5,
-      "maxHpPerTier": 50,
+      "effectPerTier": 11,
+      "maxHpPerTier": 55,
       "icon": "assets/img/glove_tier1.png"
     },
     {
@@ -17,7 +17,7 @@
       "baseCost": 150,
       "costMultiplier": 5,
       "capacityPerTier": 2,
-      "valuePerTier": 10,
+      "valuePerTier": 22,
       "icon": "assets/img/basket_tier1.png"
     }
   ]
